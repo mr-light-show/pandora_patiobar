@@ -144,15 +144,18 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def _handle_websocket_message(self, message: str) -> None:
         """Handle incoming websocket messages."""
         try:
+            _LOGGER.debug("Raw websocket message received: %s", message)
+            
             if message.startswith("42"):  # Socket.IO event message
                 # Parse Socket.IO message format: 42["event_name", data]
                 json_part = message[2:]  # Remove "42" prefix
                 data = json.loads(json_part)
                 
-                if len(data) >= 2:
+                if len(data) >= 1:
                     event_name = data[0]
                     event_data = data[1] if len(data) > 1 else {}
                     
+                    _LOGGER.debug("Parsed websocket event: '%s' with data: %s", event_name, event_data)
                     await self._process_websocket_event(event_name, event_data)
                     
         except json.JSONDecodeError:
@@ -162,7 +165,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
 
     async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
         """Process websocket events."""
-        _LOGGER.debug("Received websocket event: %s with data: %s", event, data)
+        _LOGGER.info("Processing websocket event: '%s' with data: %s", event, data)
         
         if event == WS_EVENT_START:
             self._current_song = data
@@ -174,7 +177,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             stations_data = data.get("stations", [])
             # Filter out empty strings and clean up station names
             self._stations = [s.strip() for s in stations_data if s.strip()]
-            _LOGGER.info("Updated station list: %s", self._stations)
+            _LOGGER.info("Updated station list via 'stations' event: %s", self._stations)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_VOLUME:
@@ -195,7 +198,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 self._stations = [s.strip() for s in data if s.strip()]
             elif "stations" in data:
                 self._stations = [s.strip() for s in data["stations"] if s.strip()]
-            _LOGGER.info("Received station list via stationList event: %s", self._stations)
+            _LOGGER.info("Received station list via 'stationList' event: %s", self._stations)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_SONG:
@@ -203,6 +206,25 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             self._current_song.update(data)
             self._is_playing = data.get("isplaying", self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
+        
+        # Catch-all for any unrecognized events that might contain station data
+        else:
+            _LOGGER.debug("Unrecognized websocket event: '%s' with data: %s", event, data)
+            
+            # Check if this unknown event contains station information
+            if isinstance(data, dict):
+                if "stations" in data:
+                    stations_data = data["stations"]
+                    if isinstance(stations_data, list):
+                        self._stations = [s.strip() for s in stations_data if s.strip()]
+                        _LOGGER.info("Found station list in unknown event '%s': %s", event, self._stations)
+                        self.async_set_updated_data(await self._async_update_data())
+                
+                # Update song info if present
+                if "title" in data or "artist" in data or "stationName" in data:
+                    _LOGGER.debug("Updating song info from unknown event '%s'", event)
+                    self._current_song.update(data)
+                    self.async_set_updated_data(await self._async_update_data())
 
     # Media control methods
     async def async_media_play(self) -> None:
@@ -265,20 +287,16 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             station_index = self._stations.index(source)
             _LOGGER.info("Selecting station '%s' at index %d", source, station_index)
             
-            # Try websocket method first
+            # Use the correct Patiobar websocket command format
             if self.websocket:
-                # Format 1: changeStation with numeric stationId (0-based index)
+                # Send changeStation command with 0-based stationId
                 message = f'42["changeStation", {{"stationId": {station_index}}}]'
                 await self.websocket.send(message)
-                _LOGGER.debug("Sent station change command: %s", message)
+                _LOGGER.debug("Sent changeStation command: %s", message)
                 
-                # Format 2: action command with station selection (pianobar format)
-                action_message = f'42["action", {{"action": "s{station_index}"}}]'
-                await self.websocket.send(action_message)
-                _LOGGER.debug("Sent station action command: %s", action_message)
             else:
                 # Fallback to HTTP command if websocket not available
-                await self._send_http_command(f"s{station_index}")
+                await self._send_http_command(f"{station_index}")
                 _LOGGER.debug("Sent HTTP station selection command for index %d", station_index)
                 
         except (ValueError, Exception) as err:
@@ -325,18 +343,62 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         await asyncio.sleep(2)  # Give websocket time to connect
         try:
             if self.websocket:
-                # Request station list
+                # Try multiple methods to get station list
+                # Method 1: getStations command
                 stations_message = '42["getStations"]'
                 await self.websocket.send(stations_message)
                 _LOGGER.debug("Requested station list from Patiobar")
+                
+                # Method 2: Alternative station request
+                alt_stations_message = '42["stations"]'
+                await self.websocket.send(alt_stations_message)
+                _LOGGER.debug("Requested station list (alternative format)")
+                
+                # Method 3: Request pianobar station list
+                pianobar_stations_message = '42["action", {"action": "s"}]'
+                await self.websocket.send(pianobar_stations_message)
+                _LOGGER.debug("Requested pianobar station list")
                 
                 # Request current status
                 status_message = '42["getStatus"]'
                 await self.websocket.send(status_message)
                 _LOGGER.debug("Requested current status from Patiobar")
                 
+                # Also try HTTP endpoint for station list
+                await self._fetch_stations_http()
+                
         except Exception as err:
             _LOGGER.error("Error requesting initial data: %s", err)
+    
+    async def _fetch_stations_http(self) -> None:
+        """Fetch stations via HTTP endpoint as backup."""
+        try:
+            # Try multiple HTTP endpoints that might provide station data
+            endpoints = ["/stations", "/getStations", "/stationList", "/data"]
+            
+            for endpoint in endpoints:
+                try:
+                    url = f"{self.http_url}{endpoint}"
+                    async with self.session.get(url) as response:
+                        if response.status == 200:
+                            stations_data = await response.json()
+                            if isinstance(stations_data, list) and stations_data:
+                                self._stations = [s.strip() for s in stations_data if s.strip()]
+                                _LOGGER.info("Fetched stations via HTTP %s: %s", endpoint, self._stations)
+                                self.async_set_updated_data(await self._async_update_data())
+                                return
+                            elif isinstance(stations_data, dict) and "stations" in stations_data:
+                                station_list = stations_data["stations"]
+                                if isinstance(station_list, list) and station_list:
+                                    self._stations = [s.strip() for s in station_list if s.strip()]
+                                    _LOGGER.info("Fetched stations via HTTP %s (nested): %s", endpoint, self._stations)
+                                    self.async_set_updated_data(await self._async_update_data())
+                                    return
+                except Exception as endpoint_err:
+                    _LOGGER.debug("HTTP endpoint %s failed: %s", endpoint, endpoint_err)
+                    
+        except Exception as err:
+            _LOGGER.debug("HTTP station fetch failed (this is normal): %s", err)
 
     async def _send_http_command(self, action: str) -> None:
         """Send HTTP command to patiobar."""
