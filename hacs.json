@@ -1,0 +1,8 @@
+{
+  "name": "Patiobar Pandora Media Player",
+  "content_in_root": false,
+  "filename": "patiobar_pandora.zip",
+  "hide_default_branch": true,
+  "render_readme": false,
+  "iot_class": "Local Polling"
+}
