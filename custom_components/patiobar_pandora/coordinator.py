@@ -24,6 +24,9 @@ from .const import (
     WS_EVENT_START,
     WS_EVENT_STATIONS,
     WS_EVENT_VOLUME,
+    WS_EVENT_STATION,
+    WS_EVENT_STATION_LIST,
+    WS_EVENT_SONG,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,6 +110,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         await super().async_config_entry_first_refresh()
         # Start websocket connection after first refresh
         self.websocket_task = asyncio.create_task(self._websocket_handler())
+        # Request initial station list
+        await self._request_initial_data()
 
     async def async_disconnect(self) -> None:
         """Disconnect from websocket."""
@@ -167,12 +172,36 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             
         elif event == WS_EVENT_STATIONS:
             stations_data = data.get("stations", [])
-            # Filter out empty strings
-            self._stations = [s for s in stations_data if s.strip()]
+            # Filter out empty strings and clean up station names
+            self._stations = [s.strip() for s in stations_data if s.strip()]
+            _LOGGER.info("Updated station list: %s", self._stations)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_VOLUME:
             self._volume = data.get("volume", 50)
+            self.async_set_updated_data(await self._async_update_data())
+            
+        elif event == WS_EVENT_STATION:
+            # Handle station change event
+            if "stationName" in data:
+                _LOGGER.info("Station changed to: %s", data["stationName"])
+                # Update current song info to reflect station change
+                self._current_song.update(data)
+                self.async_set_updated_data(await self._async_update_data())
+                
+        elif event == WS_EVENT_STATION_LIST:
+            # Handle station list event (alternative format)
+            if isinstance(data, list):
+                self._stations = [s.strip() for s in data if s.strip()]
+            elif "stations" in data:
+                self._stations = [s.strip() for s in data["stations"] if s.strip()]
+            _LOGGER.info("Received station list via stationList event: %s", self._stations)
+            self.async_set_updated_data(await self._async_update_data())
+            
+        elif event == WS_EVENT_SONG:
+            # Handle song change which might include station info
+            self._current_song.update(data)
+            self._is_playing = data.get("isplaying", self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
 
     # Media control methods
@@ -202,10 +231,29 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def async_select_source(self, source: str) -> None:
         """Select station/source."""
         try:
+            if source not in self._stations:
+                _LOGGER.error("Station '%s' not found in station list: %s", source, self._stations)
+                return
+                
             station_index = self._stations.index(source)
+            _LOGGER.info("Selecting station '%s' at index %d", source, station_index)
+            
+            # Try websocket method first
             if self.websocket:
-                message = f'42["changeStation", {{"stationId": "{station_index}"}}]'
+                # Format 1: changeStation with numeric stationId (0-based index)
+                message = f'42["changeStation", {{"stationId": {station_index}}}]'
                 await self.websocket.send(message)
+                _LOGGER.debug("Sent station change command: %s", message)
+                
+                # Format 2: action command with station selection (pianobar format)
+                action_message = f'42["action", {{"action": "s{station_index}"}}]'
+                await self.websocket.send(action_message)
+                _LOGGER.debug("Sent station action command: %s", action_message)
+            else:
+                # Fallback to HTTP command if websocket not available
+                await self._send_http_command(f"s{station_index}")
+                _LOGGER.debug("Sent HTTP station selection command for index %d", station_index)
+                
         except (ValueError, Exception) as err:
             _LOGGER.error("Error selecting station %s: %s", source, err)
 
@@ -244,6 +292,24 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
         except Exception as err:
             _LOGGER.error("Error sending thumbs down: %s", err)
+
+    async def _request_initial_data(self) -> None:
+        """Request initial data from Patiobar including station list."""
+        await asyncio.sleep(2)  # Give websocket time to connect
+        try:
+            if self.websocket:
+                # Request station list
+                stations_message = '42["getStations"]'
+                await self.websocket.send(stations_message)
+                _LOGGER.debug("Requested station list from Patiobar")
+                
+                # Request current status
+                status_message = '42["getStatus"]'
+                await self.websocket.send(status_message)
+                _LOGGER.debug("Requested current status from Patiobar")
+                
+        except Exception as err:
+            _LOGGER.error("Error requesting initial data: %s", err)
 
     async def _send_http_command(self, action: str) -> None:
         """Send HTTP command to patiobar."""
