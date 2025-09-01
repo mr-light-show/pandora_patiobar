@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Patiobar Pandora Setup",
+        "description": "Configure your Patiobar Pandora connection",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Patiobar. Please check your host and port settings.",
+      "unknown": "Unexpected error occurred"
+    }
+  },
+  "services": {
+    "thumbs_up": {
+      "name": "Thumbs Up",
+      "description": "Rate the current song positively (thumbs up)"
+    },
+    "thumbs_down": {
+      "name": "Thumbs Down",
+      "description": "Rate the current song negatively (thumbs down)"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "domain": "patiobar_pandora",
+  "name": "Patiobar Pandora Media Player",
+  "codeowners": ["@patiobar"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/your-repo/patiobar-homeassistant",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/your-repo/patiobar-homeassistant/issues",
+  "requirements": ["websocket-client", "requests"],
+  "ssdp": [],
+  "version": "1.0.0",
+  "zeroconf": []
+}

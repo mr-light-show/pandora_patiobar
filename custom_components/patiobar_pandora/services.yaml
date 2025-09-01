@@ -1,0 +1,13 @@
+thumbs_up:
+  name: Thumbs Up
+  description: Rate the current song positively (thumbs up)
+  target:
+    entity:
+      domain: media_player
+
+thumbs_down:
+  name: Thumbs Down  
+  description: Rate the current song negatively (thumbs down)
+  target:
+    entity:
+      domain: media_player
