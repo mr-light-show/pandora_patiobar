@@ -207,15 +207,42 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     # Media control methods
     async def async_media_play(self) -> None:
         """Send play command."""
-        await self._send_http_command("play")
+        try:
+            if self.websocket:
+                # Use pianobar "p" command for play/pause toggle
+                message = '42["action", {"action": "p"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent play command via websocket")
+            else:
+                await self._send_http_command("play")
+        except Exception as err:
+            _LOGGER.error("Error sending play command: %s", err)
 
     async def async_media_pause(self) -> None:
         """Send pause command."""
-        await self._send_http_command("pause")
+        try:
+            if self.websocket:
+                # Use pianobar "p" command for play/pause toggle
+                message = '42["action", {"action": "p"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent pause command via websocket")
+            else:
+                await self._send_http_command("pause")
+        except Exception as err:
+            _LOGGER.error("Error sending pause command: %s", err)
 
     async def async_media_next_track(self) -> None:
         """Send next track command."""
-        await self._send_http_command("next")
+        try:
+            if self.websocket:
+                # Use pianobar "n" command for next track
+                message = '42["action", {"action": "n"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent next track command via websocket")
+            else:
+                await self._send_http_command("next")
+        except Exception as err:
+            _LOGGER.error("Error sending next track command: %s", err)
 
     async def async_set_volume_level(self, volume: float) -> None:
         """Set volume level (0-1)."""
