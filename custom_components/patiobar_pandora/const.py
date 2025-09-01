@@ -20,6 +20,9 @@ WS_EVENT_STATIONS = "stations"
 WS_EVENT_VOLUME = "volume"
 WS_EVENT_ACTION = "action"
 WS_EVENT_LOVEHATE = "lovehate"
+WS_EVENT_STATION = "station"
+WS_EVENT_STATION_LIST = "stationList"
+WS_EVENT_SONG = "song"
 
 # Media player constants
 SUPPORT_PAUSE = "pause"
