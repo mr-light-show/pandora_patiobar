@@ -1,6 +1,6 @@
 """Constants for the Patiobar Pandora integration."""
 
-DOMAIN = "patiobar_pandora"
+DOMAIN = "pandora_patiobar"
 
 # Configuration constants
 CONF_HOST = "host"

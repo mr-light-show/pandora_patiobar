@@ -1,5 +1,5 @@
 {
-  "domain": "patiobar_pandora",
+  "domain": "pandora_patiobar",
   "name": "Pandora via Patiobar",
   "codeowners": ["@patiobar"],
   "config_flow": true,
