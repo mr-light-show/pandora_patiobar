@@ -1,4 +1,4 @@
-# Patiobar Pandora Media Player for Home Assistant
+# Pandora via Patiobar for Home Assistant
 
 A Home Assistant integration that connects to your Patiobar service to control Pandora through the websocket interface.
 
@@ -29,7 +29,7 @@ A Home Assistant integration that connects to your Patiobar service to control P
 
 ### Manual Installation
 
-1. Copy the `custom_components/patiobar_pandora` directory to your Home Assistant `custom_components` folder
+1. Copy the `custom_components/pandora_patiobar` directory to your Home Assistant `custom_components` folder
 2. Restart Home Assistant
 3. The integration will appear in Settings > Devices & Services
 
@@ -59,14 +59,14 @@ Use the custom services for rating songs:
 
 ```yaml
 # Automation example - thumbs up the current song
-service: patiobar_pandora.thumbs_up
+service: pandora_patiobar.thumbs_up
 target:
-  entity_id: media_player.patiobar_pandora
+  entity_id: media_player.pandora_patiobar
 
 # Automation example - thumbs down the current song  
-service: patiobar_pandora.thumbs_down
+service: pandora_patiobar.thumbs_down
 target:
-  entity_id: media_player.patiobar_pandora
+  entity_id: media_player.pandora_patiobar
 ```
 
 ### Media Player Attributes
@@ -85,7 +85,7 @@ The entity provides these attributes:
 
 ```yaml
 type: media-control
-entity: media_player.patiobar_pandora
+entity: media_player.pandora_patiobar
 ```
 
 Or for more advanced control:
@@ -94,23 +94,23 @@ Or for more advanced control:
 type: entities
 title: Pandora Control
 entities:
-  - entity: media_player.patiobar_pandora
+  - entity: media_player.pandora_patiobar
   - type: buttons
     entities:
-      - entity: media_player.patiobar_pandora
+      - entity: media_player.pandora_patiobar
         name: Thumbs Up
         tap_action:
           action: call-service
-          service: patiobar_pandora.thumbs_up
+          service: pandora_patiobar.thumbs_up
           target:
-            entity_id: media_player.patiobar_pandora
-      - entity: media_player.patiobar_pandora  
+            entity_id: media_player.pandora_patiobar
+      - entity: media_player.pandora_patiobar  
         name: Thumbs Down
         tap_action:
           action: call-service
-          service: patiobar_pandora.thumbs_down
+          service: pandora_patiobar.thumbs_down
           target:
-            entity_id: media_player.patiobar_pandora
+            entity_id: media_player.pandora_patiobar
 ```
 
 ## Troubleshooting

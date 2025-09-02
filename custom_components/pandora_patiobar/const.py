@@ -1,6 +1,6 @@
 """Constants for the Patiobar Pandora integration."""
 
-DOMAIN = "patiobar_pandora"
+DOMAIN = "pandora_patiobar"
 
 # Configuration constants
 CONF_HOST = "host"
@@ -11,7 +11,7 @@ CONF_WEBSOCKET_PORT = "websocket_port"
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 80
 DEFAULT_WEBSOCKET_PORT = 80
-DEFAULT_NAME = "Patiobar Pandora"
+DEFAULT_NAME = "Pandora via Patiobar"
 
 # Websocket events
 WS_EVENT_START = "start"
