@@ -53,6 +53,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         self.websocket = None
         self.websocket_task = None
         self._stations = []
+        self._stations_raw = []  # Store original station names with numbers
         self._current_song = {}
         self._volume = 50
         self._is_playing = False
@@ -67,8 +68,41 @@ class PatiobarCoordinator(DataUpdateCoordinator):
 
     @property
     def stations(self) -> list[str]:
-        """Return available stations."""
+        """Return available stations with cleaned names."""
         return self._stations
+    
+    def _clean_station_name(self, station_name: str) -> str:
+        """Clean station name by removing numbers, prefixes, and 'Radio'."""
+        import re
+        
+        # Remove leading numbers and dots/parentheses (e.g. "0) Station Name" -> "Station Name")
+        cleaned = re.sub(r'^\d+[\)\.\]\:\-\s]+', '', station_name.strip())
+        
+        # Remove trailing numbers in parentheses (e.g. "Station Name (1)" -> "Station Name")
+        cleaned = re.sub(r'\s*\(\d+\)$', '', cleaned)
+        
+        # Remove the word "Radio" (case-insensitive, with word boundaries)
+        cleaned = re.sub(r'\bRadio\b', '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up multiple spaces and leading/trailing whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        # If cleaning removed everything, return original
+        if not cleaned:
+            cleaned = station_name.strip()
+            
+        return cleaned
+    
+    def _process_stations(self, raw_stations: list[str]) -> None:
+        """Process and clean station names while preserving selection ability."""
+        # Store raw stations for index mapping
+        self._stations_raw = [s.strip() for s in raw_stations if s.strip()]
+        
+        # Create cleaned display names
+        self._stations = [self._clean_station_name(s) for s in self._stations_raw]
+        
+        _LOGGER.debug("Raw stations: %s", self._stations_raw)
+        _LOGGER.debug("Cleaned stations: %s", self._stations)
 
     @property
     def current_song(self) -> dict[str, Any]:
@@ -175,10 +209,12 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             
         elif event == WS_EVENT_STATIONS:
             stations_data = data.get("stations", [])
-            # Filter out empty strings and clean up station names
-            self._stations = [s.strip() for s in stations_data if s.strip()]
-            _LOGGER.info("Updated station list via 'stations' event: %s", self._stations)
-            self.async_set_updated_data(await self._async_update_data())
+            # Process and clean station names
+            raw_stations = [s for s in stations_data if s.strip()]
+            if raw_stations:
+                self._process_stations(raw_stations)
+                _LOGGER.info("Updated station list via 'stations' event - Raw: %s, Cleaned: %s", self._stations_raw, self._stations)
+                self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_VOLUME:
             self._volume = data.get("volume", 50)
@@ -194,12 +230,16 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 
         elif event == WS_EVENT_STATION_LIST:
             # Handle station list event (alternative format)
+            raw_stations = []
             if isinstance(data, list):
-                self._stations = [s.strip() for s in data if s.strip()]
+                raw_stations = [s for s in data if s.strip()]
             elif "stations" in data:
-                self._stations = [s.strip() for s in data["stations"] if s.strip()]
-            _LOGGER.info("Received station list via 'stationList' event: %s", self._stations)
-            self.async_set_updated_data(await self._async_update_data())
+                raw_stations = [s for s in data["stations"] if s.strip()]
+            
+            if raw_stations:
+                self._process_stations(raw_stations)
+                _LOGGER.info("Received station list via 'stationList' event - Raw: %s, Cleaned: %s", self._stations_raw, self._stations)
+                self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_SONG:
             # Handle song change which might include station info
@@ -216,9 +256,11 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 if "stations" in data:
                     stations_data = data["stations"]
                     if isinstance(stations_data, list):
-                        self._stations = [s.strip() for s in stations_data if s.strip()]
-                        _LOGGER.info("Found station list in unknown event '%s': %s", event, self._stations)
-                        self.async_set_updated_data(await self._async_update_data())
+                        raw_stations = [s for s in stations_data if s.strip()]
+                        if raw_stations:
+                            self._process_stations(raw_stations)
+                            _LOGGER.info("Found station list in unknown event '%s' - Raw: %s, Cleaned: %s", event, self._stations_raw, self._stations)
+                            self.async_set_updated_data(await self._async_update_data())
                 
                 # Update song info if present
                 if "title" in data or "artist" in data or "stationName" in data:
@@ -281,11 +323,13 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         """Select station/source."""
         try:
             if source not in self._stations:
-                _LOGGER.error("Station '%s' not found in station list: %s", source, self._stations)
+                _LOGGER.error("Cleaned station '%s' not found in cleaned station list: %s", source, self._stations)
                 return
                 
             station_index = self._stations.index(source)
-            _LOGGER.info("Selecting station '%s' at index %d", source, station_index)
+            raw_station_name = self._stations_raw[station_index] if station_index < len(self._stations_raw) else source
+            
+            _LOGGER.info("Selecting cleaned station '%s' (raw: '%s') at index %d", source, raw_station_name, station_index)
             
             # Use the correct Patiobar websocket command format
             if self.websocket:
@@ -394,18 +438,20 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     async with self.session.get(url) as response:
                         if response.status == 200:
                             stations_data = await response.json()
+                            raw_stations = []
+                            
                             if isinstance(stations_data, list) and stations_data:
-                                self._stations = [s.strip() for s in stations_data if s.strip()]
-                                _LOGGER.info("Fetched stations via HTTP %s: %s", endpoint, self._stations)
-                                self.async_set_updated_data(await self._async_update_data())
-                                return
+                                raw_stations = [s for s in stations_data if s.strip()]
                             elif isinstance(stations_data, dict) and "stations" in stations_data:
                                 station_list = stations_data["stations"]
                                 if isinstance(station_list, list) and station_list:
-                                    self._stations = [s.strip() for s in station_list if s.strip()]
-                                    _LOGGER.info("Fetched stations via HTTP %s (nested): %s", endpoint, self._stations)
-                                    self.async_set_updated_data(await self._async_update_data())
-                                    return
+                                    raw_stations = [s for s in station_list if s.strip()]
+                            
+                            if raw_stations:
+                                self._process_stations(raw_stations)
+                                _LOGGER.info("Fetched stations via HTTP %s - Raw: %s, Cleaned: %s", endpoint, self._stations_raw, self._stations)
+                                self.async_set_updated_data(await self._async_update_data())
+                                return
                 except Exception as endpoint_err:
                     _LOGGER.debug("HTTP endpoint %s failed: %s", endpoint, endpoint_err)
                     
