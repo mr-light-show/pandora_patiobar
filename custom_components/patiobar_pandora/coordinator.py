@@ -72,7 +72,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         return self._stations
     
     def _clean_station_name(self, station_name: str) -> str:
-        """Clean station name by removing numbers and prefixes."""
+        """Clean station name by removing numbers, prefixes, and 'Radio'."""
         import re
         
         # Remove leading numbers and dots/parentheses (e.g. "0) Station Name" -> "Station Name")
@@ -81,8 +81,11 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         # Remove trailing numbers in parentheses (e.g. "Station Name (1)" -> "Station Name")
         cleaned = re.sub(r'\s*\(\d+\)$', '', cleaned)
         
-        # Remove leading/trailing whitespace
-        cleaned = cleaned.strip()
+        # Remove the word "Radio" (case-insensitive, with word boundaries)
+        cleaned = re.sub(r'\bRadio\b', '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up multiple spaces and leading/trailing whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         
         # If cleaning removed everything, return original
         if not cleaned:
