@@ -326,6 +326,12 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             if self.websocket:
                 message = '42["action", {"action": "+"}]'
                 await self.websocket.send(message)
+                _LOGGER.debug("Sent thumbs up command: %s", message)
+                
+                # Update rating immediately and refresh status
+                self._current_song["rating"] = "1"
+                await self.async_request_refresh()
+                
         except Exception as err:
             _LOGGER.error("Error sending thumbs up: %s", err)
 
@@ -335,6 +341,12 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             if self.websocket:
                 message = '42["action", {"action": "-"}]'
                 await self.websocket.send(message)
+                _LOGGER.debug("Sent thumbs down command: %s", message)
+                
+                # Update rating immediately and refresh status
+                self._current_song["rating"] = "0"
+                await self.async_request_refresh()
+                
         except Exception as err:
             _LOGGER.error("Error sending thumbs down: %s", err)
 
