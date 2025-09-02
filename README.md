@@ -1,4 +1,4 @@
-# Patiobar Pandora Media Player for Home Assistant
+# Pandora via Patiobar for Home Assistant
 
 A Home Assistant integration that connects to your Patiobar service to control Pandora through the websocket interface.
 
