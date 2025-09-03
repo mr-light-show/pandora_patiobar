@@ -81,8 +81,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         # Remove trailing numbers in parentheses (e.g. "Station Name (1)" -> "Station Name")
         cleaned = re.sub(r'\s*\(\d+\)$', '', cleaned)
         
-        # Remove the word "Radio" (case-insensitive, with word boundaries)
-        cleaned = re.sub(r'\bRadio\b', '', cleaned, flags=re.IGNORECASE)
+        # Remove the word "Radio" only if it's the last word (case-insensitive)
+        cleaned = re.sub(r'\bRadio\s*$', '', cleaned, flags=re.IGNORECASE)
         
         # Clean up multiple spaces and leading/trailing whitespace
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
