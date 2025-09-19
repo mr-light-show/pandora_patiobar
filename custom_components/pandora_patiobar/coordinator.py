@@ -427,6 +427,16 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error sending thumbs down: %s", err)
 
+    async def async_request_song_info(self) -> None:
+        """Send 'i' command to request current song information."""
+        try:
+            if self.websocket:
+                message = '42["action", {"action": "i"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent song info request command: %s", message)
+        except Exception as err:
+            _LOGGER.error("Error sending song info request: %s", err)
+
     async def _request_initial_data(self) -> None:
         """Request initial data from Patiobar including station list."""
         await asyncio.sleep(2)  # Give websocket time to connect
@@ -443,15 +453,15 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(alt_stations_message)
                 _LOGGER.debug("Requested station list (alternative format)")
                 
-                # Method 3: Request pianobar station list
-                pianobar_stations_message = '42["action", {"action": "s"}]'
-                await self.websocket.send(pianobar_stations_message)
-                _LOGGER.debug("Requested pianobar station list")
+
                 
                 # Request current status
                 status_message = '42["getStatus"]'
                 await self.websocket.send(status_message)
                 _LOGGER.debug("Requested current status from Patiobar")
+                
+                # Request current song info
+                await self.async_request_song_info()
                 
                 # Also try HTTP endpoint for station list
                 await self._fetch_stations_http()
