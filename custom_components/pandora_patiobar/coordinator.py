@@ -453,10 +453,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(alt_stations_message)
                 _LOGGER.debug("Requested station list (alternative format)")
                 
-                # Method 3: Request pianobar station list
-                pianobar_stations_message = '42["action", {"action": "s"}]'
-                await self.websocket.send(pianobar_stations_message)
-                _LOGGER.debug("Requested pianobar station list")
+
                 
                 # Request current status
                 status_message = '42["getStatus"]'
