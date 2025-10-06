@@ -224,12 +224,13 @@ class PatiobarCoordinator(DataUpdateCoordinator):
 
     async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
         """Process websocket events."""
-        _LOGGER.info("Processing websocket event: '%s' with data: %s", event, data)
+        _LOGGER.warning("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
         
         if event == WS_EVENT_START:
             self._current_song = data
             self._is_playing = data.get("isplaying", False)
             self._is_running = data.get("isrunning", False)
+            _LOGGER.warning("🎵 START EVENT - is_playing: %s, is_running: %s", self._is_playing, self._is_running)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_STATIONS:
@@ -279,17 +280,19 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         elif event == "pause" or event == "play":
             # Handle play/pause state changes
             self._is_playing = (event == "play")
-            _LOGGER.info("Play/pause state changed: %s (is_playing: %s)", event, self._is_playing)
+            _LOGGER.warning("🎵 PLAY/PAUSE EVENT: %s -> is_playing: %s", event, self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
         
         elif event == "status":
             # Handle status updates that might include play state
+            old_playing = self._is_playing
             if "isplaying" in data:
                 self._is_playing = data.get("isplaying", False)
             if "isrunning" in data:
                 self._is_running = data.get("isrunning", False)
             if "volume" in data:
                 self._volume = data.get("volume", 50)
+            _LOGGER.warning("🎵 STATUS EVENT - old_playing: %s, new_playing: %s, data: %s", old_playing, self._is_playing, data)
             # Update song info if present
             if any(key in data for key in ["title", "artist", "album", "stationName"]):
                 self._current_song.update(data)
@@ -297,7 +300,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         
         # Catch-all for any unrecognized events that might contain station data
         else:
-            _LOGGER.debug("Unrecognized websocket event: '%s' with data: %s", event, data)
+            _LOGGER.warning("🎵 UNRECOGNIZED EVENT: '%s' with data: %s", event, data)
             
             # Check if this unknown event contains station information
             if isinstance(data, dict):
@@ -335,26 +338,30 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def async_media_play(self) -> None:
         """Send play command."""
         try:
+            _LOGGER.warning("🎵 SENDING PLAY COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
                 await self.websocket.send(message)
-                _LOGGER.debug("Sent play command via websocket")
+                _LOGGER.warning("🎵 SENT PLAY COMMAND via websocket: %s", message)
             else:
                 await self._send_http_command("play")
+                _LOGGER.warning("🎵 SENT PLAY COMMAND via HTTP")
         except Exception as err:
             _LOGGER.error("Error sending play command: %s", err)
 
     async def async_media_pause(self) -> None:
         """Send pause command."""
         try:
+            _LOGGER.warning("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
                 await self.websocket.send(message)
-                _LOGGER.debug("Sent pause command via websocket")
+                _LOGGER.warning("🎵 SENT PAUSE COMMAND via websocket: %s", message)
             else:
                 await self._send_http_command("pause")
+                _LOGGER.warning("🎵 SENT PAUSE COMMAND via HTTP")
         except Exception as err:
             _LOGGER.error("Error sending pause command: %s", err)
 
