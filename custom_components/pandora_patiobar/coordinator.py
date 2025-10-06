@@ -262,12 +262,13 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("🎵 FOUND isplaying: %s -> %s (%s)", old_playing, self._is_playing, source)
                 state_updated = True
                 
-        # Audio control
+        # Audio control - use $scope.volume directly (already a percentage)
         if "volume" in data:
             old_volume = self._volume
-            self._volume = data.get("volume", 50)
+            # $scope.volume is already a percentage (0-100), use it directly
+            self._volume = data.get("volume")
             if old_volume != self._volume:
-                _LOGGER.info("🎵 FOUND volume: %s -> %s (%s)", old_volume, self._volume, source)
+                _LOGGER.info("🎵 FOUND volume: %s -> %s%% (%s)", old_volume, self._volume, source)
                 state_updated = True
                 
         # Song information - update current_song with all available fields
