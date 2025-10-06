@@ -56,7 +56,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         self._stations_raw = []  # Store original station names with numbers
         self._current_song = {}
         self._volume = 50
-        self._is_playing = False
+        self._is_playing = False  # Start as False, will be updated from websocket
         self._is_running = False
 
         super().__init__(
@@ -228,9 +228,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         
         if event == WS_EVENT_START:
             self._current_song = data
-            self._is_playing = data.get("isplaying", False)
-            self._is_running = data.get("isrunning", False)
-            _LOGGER.warning("🎵 START EVENT - is_playing: %s, is_running: %s", self._is_playing, self._is_running)
+            # Be more careful about initial state - only set to True if explicitly true
+            self._is_playing = data.get("isplaying") is True
+            self._is_running = data.get("isrunning") is True
+            _LOGGER.warning("🎵 START EVENT - is_playing: %s, is_running: %s, data: %s", self._is_playing, self._is_running, data)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_STATIONS:
@@ -277,6 +278,16 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             self._is_playing = data.get("isplaying", self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
         
+        elif event == "action":
+            # Handle action responses (like play/pause toggle)
+            action = data.get("action", "")
+            _LOGGER.warning("🎵 ACTION EVENT: action='%s', data: %s", action, data)
+            
+            if action == "p":
+                # Play/pause toggle - we need to request status to get current state
+                _LOGGER.warning("🎵 PLAY/PAUSE TOGGLE DETECTED - requesting status")
+                await self._request_current_status()
+            
         elif event == "pause" or event == "play":
             # Handle play/pause state changes
             self._is_playing = (event == "play")
@@ -473,6 +484,20 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Sent song info request command: %s", message)
         except Exception as err:
             _LOGGER.error("Error sending song info request: %s", err)
+
+    async def _request_current_status(self) -> None:
+        """Request current status from Patiobar."""
+        try:
+            if self.websocket:
+                # Request current status
+                status_message = '42["getStatus"]'
+                await self.websocket.send(status_message)
+                _LOGGER.warning("🎵 REQUESTED CURRENT STATUS")
+                
+                # Also try song info request
+                await self.async_request_song_info()
+        except Exception as err:
+            _LOGGER.error("Error requesting current status: %s", err)
 
     async def _request_initial_data(self) -> None:
         """Request initial data from Patiobar including station list."""
