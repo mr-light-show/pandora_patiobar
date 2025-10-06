@@ -180,11 +180,19 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         song_info = self.coordinator.current_song
         attributes = {}
         
+        # Rating (loved/rating fields from scope)
         if song_info.get("rating"):
             attributes["rating"] = song_info["rating"]
+        if song_info.get("loved"):
+            attributes["loved"] = song_info["loved"]
         
+        # Station information  
         if song_info.get("songStationName"):
             attributes["song_station"] = song_info["songStationName"]
+        
+        # Image alt text if available
+        if song_info.get("alt"):
+            attributes["image_alt"] = song_info["alt"]
             
         return attributes
 
