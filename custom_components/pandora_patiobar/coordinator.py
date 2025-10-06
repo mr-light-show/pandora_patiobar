@@ -59,7 +59,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         self._is_playing = False  # Start as False, will be updated from websocket
         self._is_running = False
         
-        _LOGGER.warning("🎵 COORDINATOR INIT - Initial state: is_playing=%s, is_running=%s", self._is_playing, self._is_running)
+        _LOGGER.info("🎵 COORDINATOR INIT - Initial state: is_playing=%s, is_running=%s", self._is_playing, self._is_running)
 
         super().__init__(
             hass,
@@ -226,7 +226,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
 
     async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
         """Process websocket events."""
-        _LOGGER.warning("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
+        _LOGGER.info("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
         
         # Check for all scope fields in any event and update accordingly
         state_updated = False
@@ -234,20 +234,20 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         # Server/process status fields
         if "patiobarRunning" in data:
             # Server connection status - could be useful for connectivity monitoring
-            _LOGGER.warning("🎵 FOUND patiobarRunning: %s", data.get("patiobarRunning"))
+            _LOGGER.info("🎵 FOUND patiobarRunning: %s", data.get("patiobarRunning"))
             
         if "pianobarRunning" in data:
             old_running = self._is_running
             self._is_running = data.get("pianobarRunning", False)
             if old_running != self._is_running:
-                _LOGGER.warning("🎵 FOUND pianobarRunning: %s -> %s", old_running, self._is_running)
+                _LOGGER.info("🎵 FOUND pianobarRunning: %s -> %s", old_running, self._is_running)
                 state_updated = True
                 
         if "pianobarPlaying" in data:
             old_playing = self._is_playing
             self._is_playing = data.get("pianobarPlaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.warning("🎵 FOUND pianobarPlaying: %s -> %s", old_playing, self._is_playing)
+                _LOGGER.info("🎵 FOUND pianobarPlaying: %s -> %s", old_playing, self._is_playing)
                 state_updated = True
                 
         # Audio control
@@ -255,7 +255,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             old_volume = self._volume
             self._volume = data.get("volume", 50)
             if old_volume != self._volume:
-                _LOGGER.warning("🎵 FOUND volume: %s -> %s", old_volume, self._volume)
+                _LOGGER.info("🎵 FOUND volume: %s -> %s", old_volume, self._volume)
                 state_updated = True
                 
         # Song information - update current_song with all available fields
@@ -268,7 +268,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 if old_value != new_value:
                     self._current_song[field] = new_value
                     song_updated = True
-                    _LOGGER.warning("🎵 FOUND song field '%s': %s -> %s", field, old_value, new_value)
+                    _LOGGER.info("🎵 FOUND song field '%s': %s -> %s", field, old_value, new_value)
                     
         # Map 'src' to 'coverArt' for compatibility
         if "src" in data:
@@ -280,7 +280,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             new_station = data.get("stationName")
             if old_station != new_station:
                 self._current_song["stationName"] = new_station
-                _LOGGER.warning("🎵 FOUND stationName: %s -> %s", old_station, new_station)
+                _LOGGER.info("🎵 FOUND stationName: %s -> %s", old_station, new_station)
                 song_updated = True
                 
         if "stations" in data:
@@ -289,7 +289,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 raw_stations = [s for s in stations_data if s.strip()]
                 if raw_stations != self._stations_raw:
                     self._process_stations(raw_stations)
-                    _LOGGER.warning("🎵 FOUND stations: %s", len(raw_stations))
+                    _LOGGER.info("🎵 FOUND stations: %s", len(raw_stations))
                     state_updated = True
                     
         # Update Home Assistant if any state changed
@@ -305,7 +305,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             else:
                 self._is_playing = data.get("isplaying") is True
             self._is_running = data.get("isrunning") is True
-            _LOGGER.warning("🎵 START EVENT - is_playing: %s, is_running: %s, data: %s", self._is_playing, self._is_running, data)
+            _LOGGER.info("🎵 START EVENT - is_playing: %s, is_running: %s, data: %s", self._is_playing, self._is_running, data)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_STATIONS:
@@ -355,14 +355,14 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         elif event == "action":
             # Handle action responses (like play/pause toggle)
             action = data.get("action", "")
-            _LOGGER.warning("🎵 ACTION EVENT: action='%s', data: %s", action, data)
+            _LOGGER.info("🎵 ACTION EVENT: action='%s', data: %s", action, data)
             
             if action == "p":
                 # Play/pause toggle - state should already be handled above
                 # Only do manual toggle if no pianobarPlaying was found
                 if not state_updated and "pianobarPlaying" not in data:
                     self._is_playing = not self._is_playing
-                    _LOGGER.warning("🎵 MANUAL STATE TOGGLE (no pianobarPlaying) - is_playing: %s", self._is_playing)
+                    _LOGGER.info("🎵 MANUAL STATE TOGGLE (no pianobarPlaying) - is_playing: %s", self._is_playing)
                     self.async_set_updated_data(await self._async_update_data())
                 
                 # Still try to request status in case it helps
@@ -374,7 +374,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         elif event == "pause" or event == "play":
             # Handle play/pause state changes
             self._is_playing = (event == "play")
-            _LOGGER.warning("🎵 PLAY/PAUSE EVENT: %s -> is_playing: %s", event, self._is_playing)
+            _LOGGER.info("🎵 PLAY/PAUSE EVENT: %s -> is_playing: %s", event, self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
         
         elif event == "status":
@@ -386,7 +386,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 self._is_running = data.get("isrunning", False)
             if "volume" in data:
                 self._volume = data.get("volume", 50)
-            _LOGGER.warning("🎵 STATUS EVENT - old_playing: %s, new_playing: %s, data: %s", old_playing, self._is_playing, data)
+            _LOGGER.info("🎵 STATUS EVENT - old_playing: %s, new_playing: %s, data: %s", old_playing, self._is_playing, data)
             # Update song info if present
             if any(key in data for key in ["title", "artist", "album", "stationName"]):
                 self._current_song.update(data)
@@ -394,7 +394,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         
         # Catch-all for any unrecognized events that might contain station data
         else:
-            _LOGGER.warning("🎵 UNRECOGNIZED EVENT: '%s' with data: %s", event, data)
+            _LOGGER.info("🎵 UNRECOGNIZED EVENT: '%s' with data: %s", event, data)
             
             # Check if this unknown event contains station information
             if isinstance(data, dict):
@@ -418,16 +418,16 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 if "pianobarPlaying" in data:
                     old_playing = self._is_playing
                     self._is_playing = data.get("pianobarPlaying", False)
-                    _LOGGER.warning("🎵 FOUND pianobarPlaying in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
+                    _LOGGER.info("🎵 FOUND pianobarPlaying in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
                 elif "isplaying" in data:
                     old_playing = self._is_playing
                     self._is_playing = data.get("isplaying", False)
-                    _LOGGER.warning("🎵 FOUND PLAYING STATE in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
+                    _LOGGER.info("🎵 FOUND PLAYING STATE in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
                     
                 if "isrunning" in data:
                     old_running = self._is_running
                     self._is_running = data.get("isrunning", False)
-                    _LOGGER.warning("🎵 FOUND RUNNING STATE in unknown event '%s': %s -> %s", event, old_running, self._is_running)
+                    _LOGGER.info("🎵 FOUND RUNNING STATE in unknown event '%s': %s -> %s", event, old_running, self._is_running)
                     
                 # Trigger update if any relevant data was found
                 if any(key in data for key in ["title", "artist", "stationName", "pianobarPlaying", "isplaying", "isrunning"]):
@@ -439,30 +439,30 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def async_media_play(self) -> None:
         """Send play command."""
         try:
-            _LOGGER.warning("🎵 SENDING PLAY COMMAND - current is_playing: %s", self._is_playing)
+            _LOGGER.info("🎵 SENDING PLAY COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
                 await self.websocket.send(message)
-                _LOGGER.warning("🎵 SENT PLAY COMMAND via websocket: %s", message)
+                _LOGGER.info("🎵 SENT PLAY COMMAND via websocket: %s", message)
             else:
                 await self._send_http_command("play")
-                _LOGGER.warning("🎵 SENT PLAY COMMAND via HTTP")
+                _LOGGER.info("🎵 SENT PLAY COMMAND via HTTP")
         except Exception as err:
             _LOGGER.error("Error sending play command: %s", err)
 
     async def async_media_pause(self) -> None:
         """Send pause command."""
         try:
-            _LOGGER.warning("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
+            _LOGGER.info("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
                 await self.websocket.send(message)
-                _LOGGER.warning("🎵 SENT PAUSE COMMAND via websocket: %s", message)
+                _LOGGER.info("🎵 SENT PAUSE COMMAND via websocket: %s", message)
             else:
                 await self._send_http_command("pause")
-                _LOGGER.warning("🎵 SENT PAUSE COMMAND via HTTP")
+                _LOGGER.info("🎵 SENT PAUSE COMMAND via HTTP")
         except Exception as err:
             _LOGGER.error("Error sending pause command: %s", err)
 
@@ -582,7 +582,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 # Request current status
                 status_message = '42["getStatus"]'
                 await self.websocket.send(status_message)
-                _LOGGER.warning("🎵 REQUESTED CURRENT STATUS")
+                _LOGGER.info("🎵 REQUESTED CURRENT STATUS")
                 
                 # Also try song info request
                 await self.async_request_song_info()
