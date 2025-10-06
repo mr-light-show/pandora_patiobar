@@ -358,12 +358,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             _LOGGER.info("🎵 ACTION EVENT: action='%s', data: %s", action, data)
             
             if action == "p":
-                # Play/pause toggle - state should already be handled above
-                # Only do manual toggle if no pianobarPlaying was found
-                if not state_updated and "pianobarPlaying" not in data:
-                    self._is_playing = not self._is_playing
-                    _LOGGER.info("🎵 MANUAL STATE TOGGLE (no pianobarPlaying) - is_playing: %s", self._is_playing)
-                    self.async_set_updated_data(await self._async_update_data())
+                # Play/pause toggle - wait for pianobarPlaying field from websocket
+                # Do not manually toggle state - rely on scope fields only
+                _LOGGER.info("🎵 PLAY/PAUSE TOGGLE - waiting for pianobarPlaying update from websocket")
                 
                 # Still try to request status in case it helps
                 await self._request_current_status()
