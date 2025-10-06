@@ -22,7 +22,8 @@ from .coordinator import PatiobarCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 SUPPORT_PATIOBAR = (
-    MediaPlayerEntityFeature.PLAY_PAUSE
+    MediaPlayerEntityFeature.PAUSE
+    | MediaPlayerEntityFeature.PLAY
     | MediaPlayerEntityFeature.NEXT_TRACK
     | MediaPlayerEntityFeature.VOLUME_SET
     | MediaPlayerEntityFeature.SELECT_SOURCE
@@ -180,13 +181,6 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
             attributes["song_station"] = song_info["songStationName"]
             
         return attributes
-
-    async def async_media_play_pause(self) -> None:
-        """Toggle play/pause."""
-        if self.coordinator.is_playing:
-            await self.coordinator.async_media_pause()
-        else:
-            await self.coordinator.async_media_play()
 
     async def async_media_play(self) -> None:
         """Send play command."""
