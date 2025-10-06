@@ -508,10 +508,22 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
                 _LOGGER.debug("Sent changeStation command: %s", message)
                 
+                # Station change typically starts playback - set playing state
+                old_playing = self._is_playing
+                self._is_playing = True
+                _LOGGER.info("🎵 STATION CHANGE - set is_playing: %s -> True (station changes start playback)", old_playing)
+                self.async_set_updated_data(await self._async_update_data())
+                
             else:
                 # Fallback to HTTP command if websocket not available
                 await self._send_http_command(f"{station_index}")
                 _LOGGER.debug("Sent HTTP station selection command for index %d", station_index)
+                
+                # Also set playing state for HTTP fallback
+                old_playing = self._is_playing
+                self._is_playing = True
+                _LOGGER.info("🎵 STATION CHANGE (HTTP) - set is_playing: %s -> True", old_playing)
+                self.async_set_updated_data(await self._async_update_data())
                 
         except (ValueError, Exception) as err:
             _LOGGER.error("Error selecting station %s: %s", source, err)
