@@ -276,6 +276,25 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             self._is_playing = data.get("isplaying", self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
         
+        elif event == "pause" or event == "play":
+            # Handle play/pause state changes
+            self._is_playing = (event == "play")
+            _LOGGER.info("Play/pause state changed: %s (is_playing: %s)", event, self._is_playing)
+            self.async_set_updated_data(await self._async_update_data())
+        
+        elif event == "status":
+            # Handle status updates that might include play state
+            if "isplaying" in data:
+                self._is_playing = data.get("isplaying", False)
+            if "isrunning" in data:
+                self._is_running = data.get("isrunning", False)
+            if "volume" in data:
+                self._volume = data.get("volume", 50)
+            # Update song info if present
+            if any(key in data for key in ["title", "artist", "album", "stationName"]):
+                self._current_song.update(data)
+            self.async_set_updated_data(await self._async_update_data())
+        
         # Catch-all for any unrecognized events that might contain station data
         else:
             _LOGGER.debug("Unrecognized websocket event: '%s' with data: %s", event, data)
@@ -297,6 +316,17 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     # Preserve existing rating if not provided in new data
                     existing_rating = self._current_song.get("rating")
                     self._current_song.update(data)
+                    
+                # Check for play state in unknown events
+                if "isplaying" in data:
+                    self._is_playing = data.get("isplaying", False)
+                    _LOGGER.info("Updated playing state from unknown event '%s': %s", event, self._is_playing)
+                    
+                if "isrunning" in data:
+                    self._is_running = data.get("isrunning", False)
+                    
+                # Trigger update if any relevant data was found
+                if any(key in data for key in ["title", "artist", "stationName", "isplaying", "isrunning"]):
                     if "rating" not in data and existing_rating:
                         self._current_song["rating"] = existing_rating
                     self.async_set_updated_data(await self._async_update_data())
