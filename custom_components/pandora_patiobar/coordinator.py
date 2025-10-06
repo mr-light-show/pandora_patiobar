@@ -228,16 +228,75 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         """Process websocket events."""
         _LOGGER.warning("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
         
-        # Check for pianobarPlaying field in any event FIRST
-        pianobar_playing_found = False
+        # Check for all scope fields in any event and update accordingly
+        state_updated = False
+        
+        # Server/process status fields
+        if "patiobarRunning" in data:
+            # Server connection status - could be useful for connectivity monitoring
+            _LOGGER.warning("🎵 FOUND patiobarRunning: %s", data.get("patiobarRunning"))
+            
+        if "pianobarRunning" in data:
+            old_running = self._is_running
+            self._is_running = data.get("pianobarRunning", False)
+            if old_running != self._is_running:
+                _LOGGER.warning("🎵 FOUND pianobarRunning: %s -> %s", old_running, self._is_running)
+                state_updated = True
+                
         if "pianobarPlaying" in data:
             old_playing = self._is_playing
             self._is_playing = data.get("pianobarPlaying", False)
-            pianobar_playing_found = True
-            _LOGGER.warning("🎵 FOUND pianobarPlaying: %s -> %s", old_playing, self._is_playing)
-            # Update immediately when we find pianobarPlaying
+            if old_playing != self._is_playing:
+                _LOGGER.warning("🎵 FOUND pianobarPlaying: %s -> %s", old_playing, self._is_playing)
+                state_updated = True
+                
+        # Audio control
+        if "volume" in data:
+            old_volume = self._volume
+            self._volume = data.get("volume", 50)
+            if old_volume != self._volume:
+                _LOGGER.warning("🎵 FOUND volume: %s -> %s", old_volume, self._volume)
+                state_updated = True
+                
+        # Song information - update current_song with all available fields
+        song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating"]
+        song_updated = False
+        for field in song_fields:
+            if field in data:
+                old_value = self._current_song.get(field)
+                new_value = data.get(field)
+                if old_value != new_value:
+                    self._current_song[field] = new_value
+                    song_updated = True
+                    _LOGGER.warning("🎵 FOUND song field '%s': %s -> %s", field, old_value, new_value)
+                    
+        # Map 'src' to 'coverArt' for compatibility
+        if "src" in data:
+            self._current_song["coverArt"] = data.get("src")
+            
+        # Station data
+        if "stationName" in data:
+            old_station = self._current_song.get("stationName")
+            new_station = data.get("stationName")
+            if old_station != new_station:
+                self._current_song["stationName"] = new_station
+                _LOGGER.warning("🎵 FOUND stationName: %s -> %s", old_station, new_station)
+                song_updated = True
+                
+        if "stations" in data:
+            stations_data = data.get("stations", [])
+            if isinstance(stations_data, list) and stations_data:
+                raw_stations = [s for s in stations_data if s.strip()]
+                if raw_stations != self._stations_raw:
+                    self._process_stations(raw_stations)
+                    _LOGGER.warning("🎵 FOUND stations: %s", len(raw_stations))
+                    state_updated = True
+                    
+        # Update Home Assistant if any state changed
+        if state_updated or song_updated:
             self.async_set_updated_data(await self._async_update_data())
             
+        # Now handle specific events (these may override some of the above)
         if event == WS_EVENT_START:
             self._current_song = data
             # Check for pianobarPlaying first, then fallback to isplaying
@@ -299,9 +358,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("🎵 ACTION EVENT: action='%s', data: %s", action, data)
             
             if action == "p":
-                # Play/pause toggle - check if pianobarPlaying was already handled
-                if not pianobar_playing_found and "pianobarPlaying" not in data:
-                    # If no pianobarPlaying field, manually toggle as fallback
+                # Play/pause toggle - state should already be handled above
+                # Only do manual toggle if no pianobarPlaying was found
+                if not state_updated and "pianobarPlaying" not in data:
                     self._is_playing = not self._is_playing
                     _LOGGER.warning("🎵 MANUAL STATE TOGGLE (no pianobarPlaying) - is_playing: %s", self._is_playing)
                     self.async_set_updated_data(await self._async_update_data())
@@ -309,7 +368,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 # Still try to request status in case it helps
                 await self._request_current_status()
             elif action == "i":
-                # Song info request response - ignore for now
+                # Song info request response - already handled above
                 pass
             
         elif event == "pause" or event == "play":
