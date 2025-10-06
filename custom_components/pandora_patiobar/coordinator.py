@@ -543,8 +543,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
                 _LOGGER.debug("Sent thumbs up command: %s", message)
                 
-                # Update rating immediately and notify Home Assistant
+                # Update both rating and loved state immediately
                 self._current_song["rating"] = "1"
+                self._current_song["loved"] = True
+                _LOGGER.info("🎵 THUMBS UP - updated rating=1, loved=True")
                 self.async_set_updated_data(await self._async_update_data())
                 
         except Exception as err:
@@ -558,8 +560,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
                 _LOGGER.debug("Sent thumbs down command: %s", message)
                 
-                # Update rating immediately and notify Home Assistant
+                # Update both rating and loved state immediately
                 self._current_song["rating"] = "0"
+                self._current_song["loved"] = False
+                _LOGGER.info("🎵 THUMBS DOWN - updated rating=0, loved=False")
                 self.async_set_updated_data(await self._async_update_data())
                 
         except Exception as err:
