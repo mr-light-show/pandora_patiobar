@@ -245,10 +245,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 
         if "pianobarPlaying" in data:
             old_playing = self._is_playing
-            # Invert pianobarPlaying since it appears to be backwards in the client
-            self._is_playing = not data.get("pianobarPlaying", True)
+            self._is_playing = data.get("pianobarPlaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.info("🎵 FOUND pianobarPlaying: %s (inverted) -> is_playing: %s", data.get("pianobarPlaying"), self._is_playing)
+                _LOGGER.info("🎵 FOUND pianobarPlaying: %s -> %s", old_playing, self._is_playing)
                 state_updated = True
                 
         # Audio control
@@ -302,12 +301,11 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             self._current_song = data
             # Check for pianobarPlaying first, then fallback to isplaying
             if "pianobarPlaying" in data:
-                # Invert pianobarPlaying since it appears to be backwards in the client
-                self._is_playing = not data.get("pianobarPlaying", True)
+                self._is_playing = data.get("pianobarPlaying", False)
             else:
                 self._is_playing = data.get("isplaying") is True
             self._is_running = data.get("isrunning") is True
-            _LOGGER.info("🎵 START EVENT - pianobarPlaying: %s (inverted) -> is_playing: %s, is_running: %s", data.get("pianobarPlaying"), self._is_playing, self._is_running)
+            _LOGGER.info("🎵 START EVENT - is_playing: %s, is_running: %s, data: %s", self._is_playing, self._is_running, data)
             self.async_set_updated_data(await self._async_update_data())
             
         elif event == WS_EVENT_STATIONS:
@@ -419,9 +417,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 # Check for play state in unknown events
                 if "pianobarPlaying" in data:
                     old_playing = self._is_playing
-                    # Invert pianobarPlaying since it appears to be backwards in the client
-                    self._is_playing = not data.get("pianobarPlaying", True)
-                    _LOGGER.info("🎵 FOUND pianobarPlaying in unknown event '%s': %s (inverted) -> is_playing: %s", event, data.get("pianobarPlaying"), self._is_playing)
+                    self._is_playing = data.get("pianobarPlaying", False)
+                    _LOGGER.info("🎵 FOUND pianobarPlaying in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
                 elif "isplaying" in data:
                     old_playing = self._is_playing
                     self._is_playing = data.get("isplaying", False)
