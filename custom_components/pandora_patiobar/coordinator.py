@@ -259,7 +259,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 state_updated = True
                 
         # Song information - update current_song with all available fields
-        song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating"]
+        song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating", "pianobarPlaying", "isplaying"]
         song_updated = False
         for field in song_fields:
             if field in data:
@@ -269,6 +269,19 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     self._current_song[field] = new_value
                     song_updated = True
                     _LOGGER.info("🎵 FOUND song field '%s': %s -> %s", field, old_value, new_value)
+                    
+                    # Handle play state updates in song data
+                    if field == "pianobarPlaying":
+                        old_playing = self._is_playing
+                        self._is_playing = new_value
+                        _LOGGER.info("🎵 SONG DATA - pianobarPlaying updated: %s -> %s", old_playing, self._is_playing)
+                        state_updated = True
+                    elif field == "isplaying" and "pianobarPlaying" not in data:
+                        # Fallback to isplaying if pianobarPlaying not present
+                        old_playing = self._is_playing
+                        self._is_playing = new_value
+                        _LOGGER.info("🎵 SONG DATA - isplaying fallback: %s -> %s", old_playing, self._is_playing)
+                        state_updated = True
                     
         # Map 'src' to 'coverArt' for compatibility
         if "src" in data:
@@ -349,7 +362,17 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             self._current_song.update(data)
             if "rating" not in data and existing_rating:
                 self._current_song["rating"] = existing_rating
-            self._is_playing = data.get("isplaying", self._is_playing)
+            
+            # Check for play state in song event (should already be handled above, but double-check)
+            if "pianobarPlaying" in data:
+                old_playing = self._is_playing
+                self._is_playing = data.get("pianobarPlaying", False)
+                _LOGGER.info("🎵 WS_EVENT_SONG - pianobarPlaying: %s -> %s", old_playing, self._is_playing)
+            elif "isplaying" in data:
+                old_playing = self._is_playing
+                self._is_playing = data.get("isplaying", self._is_playing)
+                _LOGGER.info("🎵 WS_EVENT_SONG - isplaying fallback: %s -> %s", old_playing, self._is_playing)
+                
             self.async_set_updated_data(await self._async_update_data())
         
         elif event == "action":
