@@ -81,8 +81,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         # Remove trailing numbers in parentheses (e.g. "Station Name (1)" -> "Station Name")
         cleaned = re.sub(r'\s*\(\d+\)$', '', cleaned)
         
-        # Remove the word "Radio" (case-insensitive, with word boundaries)
-        cleaned = re.sub(r'\bRadio\b', '', cleaned, flags=re.IGNORECASE)
+        # Remove the word "Radio" only if it's the last word (case-insensitive)
+        cleaned = re.sub(r'\bRadio\s*$', '', cleaned, flags=re.IGNORECASE)
         
         # Clean up multiple spaces and leading/trailing whitespace
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
@@ -163,17 +163,42 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         while True:
             try:
                 _LOGGER.debug("Connecting to websocket at %s", self.ws_url)
-                async with websockets.connect(self.ws_url) as websocket:
+                async with websockets.connect(
+                    self.ws_url,
+                    ping_interval=30,  # Send ping every 30 seconds
+                    ping_timeout=10,   # Wait 10 seconds for pong
+                    close_timeout=10   # Wait 10 seconds for close
+                ) as websocket:
                     self.websocket = websocket
                     # Send initial Socket.IO handshake
                     await websocket.send("40")  # Socket.IO connect message
                     
-                    async for message in websocket:
-                        await self._handle_websocket_message(message)
+                    # Start keepalive task
+                    keepalive_task = asyncio.create_task(self._keepalive_handler(websocket))
+                    
+                    try:
+                        async for message in websocket:
+                            await self._handle_websocket_message(message)
+                    finally:
+                        keepalive_task.cancel()
+                        try:
+                            await keepalive_task
+                        except asyncio.CancelledError:
+                            pass
                         
             except Exception as err:
                 _LOGGER.error("Websocket connection error: %s", err)
                 await asyncio.sleep(5)  # Wait before reconnecting
+
+    async def _keepalive_handler(self, websocket) -> None:
+        """Send Socket.IO keepalive messages to maintain connection."""
+        try:
+            while True:
+                await asyncio.sleep(25)  # Send keepalive every 25 seconds
+                await websocket.send("2")  # Socket.IO ping message
+                _LOGGER.debug("Sent Socket.IO keepalive ping")
+        except Exception as err:
+            _LOGGER.debug("Keepalive handler stopped: %s", err)
 
     async def _handle_websocket_message(self, message: str) -> None:
         """Handle incoming websocket messages."""
@@ -243,7 +268,11 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             
         elif event == WS_EVENT_SONG:
             # Handle song change which might include station info
+            # Preserve existing rating if not provided in new data
+            existing_rating = self._current_song.get("rating")
             self._current_song.update(data)
+            if "rating" not in data and existing_rating:
+                self._current_song["rating"] = existing_rating
             self._is_playing = data.get("isplaying", self._is_playing)
             self.async_set_updated_data(await self._async_update_data())
         
@@ -284,6 +313,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 # Update song info if present
                 if "title" in data or "artist" in data or "stationName" in data:
                     _LOGGER.debug("Updating song info from unknown event '%s'", event)
+                    # Preserve existing rating if not provided in new data
+                    existing_rating = self._current_song.get("rating")
                     self._current_song.update(data)
                     
                 # Check for play state in unknown events
@@ -296,6 +327,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     
                 # Trigger update if any relevant data was found
                 if any(key in data for key in ["title", "artist", "stationName", "isplaying", "isrunning"]):
+                    if "rating" not in data and existing_rating:
+                        self._current_song["rating"] = existing_rating
                     self.async_set_updated_data(await self._async_update_data())
 
     # Media control methods
@@ -402,9 +435,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
                 _LOGGER.debug("Sent thumbs up command: %s", message)
                 
-                # Update rating immediately and refresh status
+                # Update rating immediately and notify Home Assistant
                 self._current_song["rating"] = "1"
-                await self.async_request_refresh()
+                self.async_set_updated_data(await self._async_update_data())
                 
         except Exception as err:
             _LOGGER.error("Error sending thumbs up: %s", err)
@@ -417,12 +450,22 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
                 _LOGGER.debug("Sent thumbs down command: %s", message)
                 
-                # Update rating immediately and refresh status
+                # Update rating immediately and notify Home Assistant
                 self._current_song["rating"] = "0"
-                await self.async_request_refresh()
+                self.async_set_updated_data(await self._async_update_data())
                 
         except Exception as err:
             _LOGGER.error("Error sending thumbs down: %s", err)
+
+    async def async_request_song_info(self) -> None:
+        """Send 'i' command to request current song information."""
+        try:
+            if self.websocket:
+                message = '42["action", {"action": "i"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent song info request command: %s", message)
+        except Exception as err:
+            _LOGGER.error("Error sending song info request: %s", err)
 
     async def _request_initial_data(self) -> None:
         """Request initial data from Patiobar including station list."""
@@ -440,15 +483,15 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(alt_stations_message)
                 _LOGGER.debug("Requested station list (alternative format)")
                 
-                # Method 3: Request pianobar station list
-                pianobar_stations_message = '42["action", {"action": "s"}]'
-                await self.websocket.send(pianobar_stations_message)
-                _LOGGER.debug("Requested pianobar station list")
+
                 
                 # Request current status
                 status_message = '42["getStatus"]'
                 await self.websocket.send(status_message)
                 _LOGGER.debug("Requested current status from Patiobar")
+                
+                # Request current song info
+                await self.async_request_song_info()
                 
                 # Also try HTTP endpoint for station list
                 await self._fetch_stations_http()

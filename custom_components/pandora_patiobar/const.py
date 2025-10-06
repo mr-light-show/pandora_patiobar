@@ -11,7 +11,7 @@ CONF_WEBSOCKET_PORT = "websocket_port"
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 80
 DEFAULT_WEBSOCKET_PORT = 80
-DEFAULT_NAME = "Pandora via Patiobar"
+DEFAULT_NAME = "Pandora Patiobar"
 
 # Websocket events
 WS_EVENT_START = "start"

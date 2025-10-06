@@ -71,6 +71,7 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         self._attr_unique_id = f"{config_entry.entry_id}_media_player"
         self._attr_name = DEFAULT_NAME
         self._attr_has_entity_name = True
+        self._attr_icon = "mdi:pandora"
         
         # Media player attributes
         self._attr_supported_features = SUPPORT_PATIOBAR
