@@ -98,11 +98,13 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         if not is_running:
             state = MediaPlayerState.OFF
         elif is_playing:
-            state = MediaPlayerState.PLAYING
-        else:
+            # Swap: when coordinator says "playing", show as "paused" 
             state = MediaPlayerState.PAUSED
+        else:
+            # Swap: when coordinator says "paused", show as "playing"
+            state = MediaPlayerState.PLAYING
             
-        _LOGGER.info("🎵 MEDIA PLAYER STATE: is_running=%s, is_playing=%s -> %s", is_running, is_playing, state)
+        _LOGGER.info("🎵 MEDIA PLAYER STATE (SWAPPED): is_running=%s, is_playing=%s -> %s", is_running, is_playing, state)
         return state
 
     @property
