@@ -265,11 +265,24 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         # Audio control - use $scope.volume directly (already a percentage)
         if "volume" in data:
             old_volume = self._volume
-            # $scope.volume is already a percentage (0-100), use it directly
-            self._volume = data.get("volume")
-            if old_volume != self._volume:
-                _LOGGER.info("🎵 FOUND volume: %s -> %s%% (%s)", old_volume, self._volume, source)
-                state_updated = True
+            volume_value = data.get("volume")
+            
+            # Ensure volume is valid and convert to int if needed
+            if volume_value is not None:
+                try:
+                    # Convert to int if it's a string, keep current volume if invalid
+                    new_volume = int(volume_value) if isinstance(volume_value, (str, float)) else volume_value
+                    # Validate range (0-100) and ensure it's an integer
+                    if isinstance(new_volume, (int, float)) and 0 <= new_volume <= 100:
+                        self._volume = int(new_volume)
+                        if old_volume != self._volume:
+                            _LOGGER.info("🎵 FOUND volume: %s -> %s%% (%s)", old_volume, self._volume, source)
+                            state_updated = True
+                    else:
+                        _LOGGER.warning("🎵 Invalid volume value received: %s (keeping current: %s)", volume_value, old_volume)
+                except (ValueError, TypeError) as e:
+                    _LOGGER.warning("🎵 Failed to parse volume value '%s': %s (keeping current: %s)", volume_value, e, old_volume)
+            # If volume_value is None, keep current volume (no change)
                 
         # Song information - update current_song with all available fields
         song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating"]
