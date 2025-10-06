@@ -58,6 +58,8 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         self._volume = 50
         self._is_playing = False  # Start as False, will be updated from websocket
         self._is_running = False
+        
+        _LOGGER.warning("🎵 COORDINATOR INIT - Initial state: is_playing=%s, is_running=%s", self._is_playing, self._is_running)
 
         super().__init__(
             hass,
@@ -284,9 +286,16 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("🎵 ACTION EVENT: action='%s', data: %s", action, data)
             
             if action == "p":
-                # Play/pause toggle - we need to request status to get current state
-                _LOGGER.warning("🎵 PLAY/PAUSE TOGGLE DETECTED - requesting status")
+                # Play/pause toggle - manually toggle the state since server doesn't send status
+                self._is_playing = not self._is_playing
+                _LOGGER.warning("🎵 MANUAL STATE TOGGLE - is_playing: %s", self._is_playing)
+                self.async_set_updated_data(await self._async_update_data())
+                
+                # Still try to request status in case it helps
                 await self._request_current_status()
+            elif action == "i":
+                # Song info request response - ignore for now
+                pass
             
         elif event == "pause" or event == "play":
             # Handle play/pause state changes
@@ -333,11 +342,14 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     
                 # Check for play state in unknown events
                 if "isplaying" in data:
+                    old_playing = self._is_playing
                     self._is_playing = data.get("isplaying", False)
-                    _LOGGER.info("Updated playing state from unknown event '%s': %s", event, self._is_playing)
+                    _LOGGER.warning("🎵 FOUND PLAYING STATE in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
                     
                 if "isrunning" in data:
+                    old_running = self._is_running
                     self._is_running = data.get("isrunning", False)
+                    _LOGGER.warning("🎵 FOUND RUNNING STATE in unknown event '%s': %s -> %s", event, old_running, self._is_running)
                     
                 # Trigger update if any relevant data was found
                 if any(key in data for key in ["title", "artist", "stationName", "isplaying", "isrunning"]):
