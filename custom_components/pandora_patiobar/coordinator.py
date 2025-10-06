@@ -224,30 +224,42 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error handling websocket message: %s", err)
 
-    async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
-        """Process websocket events."""
-        _LOGGER.info("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
+    def _update_from_scope_data(self, data: dict[str, Any], source: str = "websocket") -> bool:
+        """
+        Update coordinator state from scope data payload.
         
-        # Check for all scope fields in any event and update accordingly
+        Args:
+            data: Websocket data payload potentially containing scope fields
+            source: Source description for logging (e.g. "websocket", "song_event")
+            
+        Returns:
+            bool: True if any state was updated
+        """
         state_updated = False
         
         # Server/process status fields
         if "patiobarRunning" in data:
-            # Server connection status - could be useful for connectivity monitoring
-            _LOGGER.info("🎵 FOUND patiobarRunning: %s", data.get("patiobarRunning"))
+            _LOGGER.info("🎵 FOUND patiobarRunning: %s (%s)", data.get("patiobarRunning"), source)
             
         if "pianobarRunning" in data:
             old_running = self._is_running
             self._is_running = data.get("pianobarRunning", False)
             if old_running != self._is_running:
-                _LOGGER.info("🎵 FOUND pianobarRunning: %s -> %s", old_running, self._is_running)
+                _LOGGER.info("🎵 FOUND pianobarRunning: %s -> %s (%s)", old_running, self._is_running, source)
                 state_updated = True
                 
+        # Play state - prioritize pianobarPlaying over isplaying
         if "pianobarPlaying" in data:
             old_playing = self._is_playing
             self._is_playing = data.get("pianobarPlaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.info("🎵 FOUND pianobarPlaying: %s -> %s", old_playing, self._is_playing)
+                _LOGGER.info("🎵 FOUND pianobarPlaying: %s -> %s (%s)", old_playing, self._is_playing, source)
+                state_updated = True
+        elif "isplaying" in data:
+            old_playing = self._is_playing
+            self._is_playing = data.get("isplaying", False)
+            if old_playing != self._is_playing:
+                _LOGGER.info("🎵 FOUND isplaying: %s -> %s (%s)", old_playing, self._is_playing, source)
                 state_updated = True
                 
         # Audio control
@@ -255,11 +267,11 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             old_volume = self._volume
             self._volume = data.get("volume", 50)
             if old_volume != self._volume:
-                _LOGGER.info("🎵 FOUND volume: %s -> %s", old_volume, self._volume)
+                _LOGGER.info("🎵 FOUND volume: %s -> %s (%s)", old_volume, self._volume, source)
                 state_updated = True
                 
         # Song information - update current_song with all available fields
-        song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating", "pianobarPlaying", "isplaying"]
+        song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating"]
         song_updated = False
         for field in song_fields:
             if field in data:
@@ -268,20 +280,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 if old_value != new_value:
                     self._current_song[field] = new_value
                     song_updated = True
-                    _LOGGER.info("🎵 FOUND song field '%s': %s -> %s", field, old_value, new_value)
-                    
-                    # Handle play state updates in song data
-                    if field == "pianobarPlaying":
-                        old_playing = self._is_playing
-                        self._is_playing = new_value
-                        _LOGGER.info("🎵 SONG DATA - pianobarPlaying updated: %s -> %s", old_playing, self._is_playing)
-                        state_updated = True
-                    elif field == "isplaying" and "pianobarPlaying" not in data:
-                        # Fallback to isplaying if pianobarPlaying not present
-                        old_playing = self._is_playing
-                        self._is_playing = new_value
-                        _LOGGER.info("🎵 SONG DATA - isplaying fallback: %s -> %s", old_playing, self._is_playing)
-                        state_updated = True
+                    _LOGGER.info("🎵 FOUND song field '%s': %s -> %s (%s)", field, old_value, new_value, source)
                     
         # Map 'src' to 'coverArt' for compatibility
         if "src" in data:
@@ -293,7 +292,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             new_station = data.get("stationName")
             if old_station != new_station:
                 self._current_song["stationName"] = new_station
-                _LOGGER.info("🎵 FOUND stationName: %s -> %s", old_station, new_station)
+                _LOGGER.info("🎵 FOUND stationName: %s -> %s (%s)", old_station, new_station, source)
                 song_updated = True
                 
         if "stations" in data:
@@ -302,78 +301,49 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 raw_stations = [s for s in stations_data if s.strip()]
                 if raw_stations != self._stations_raw:
                     self._process_stations(raw_stations)
-                    _LOGGER.info("🎵 FOUND stations: %s", len(raw_stations))
+                    _LOGGER.info("🎵 FOUND stations: %s (%s)", len(raw_stations), source)
                     state_updated = True
                     
+        return state_updated or song_updated
+
+    async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
+        """Process websocket events."""
+        _LOGGER.info("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
+        
+        # Update state from scope data (handles all common scope fields)
+        state_updated = self._update_from_scope_data(data, f"event:{event}")
+        
         # Update Home Assistant if any state changed
-        if state_updated or song_updated:
+        if state_updated:
             self.async_set_updated_data(await self._async_update_data())
             
-        # Now handle specific events (these may override some of the above)
         if event == WS_EVENT_START:
-            self._current_song = data
-            # Check for pianobarPlaying first, then fallback to isplaying
-            if "pianobarPlaying" in data:
-                self._is_playing = data.get("pianobarPlaying", False)
-            else:
-                self._is_playing = data.get("isplaying") is True
-            self._is_running = data.get("isrunning") is True
-            _LOGGER.info("🎵 START EVENT - is_playing: %s, is_running: %s, data: %s", self._is_playing, self._is_running, data)
-            self.async_set_updated_data(await self._async_update_data())
+            # All data already handled by _update_from_scope_data
+            _LOGGER.info("🎵 START EVENT - state updated by scope data handler")
             
         elif event == WS_EVENT_STATIONS:
-            stations_data = data.get("stations", [])
-            # Process and clean station names
-            raw_stations = [s for s in stations_data if s.strip()]
-            if raw_stations:
-                self._process_stations(raw_stations)
-                _LOGGER.info("Updated station list via 'stations' event - Raw: %s, Cleaned: %s", self._stations_raw, self._stations)
-                self.async_set_updated_data(await self._async_update_data())
+            # Stations already handled by _update_from_scope_data
+            _LOGGER.info("🎵 STATIONS EVENT - processed by scope data handler")
             
         elif event == WS_EVENT_VOLUME:
-            self._volume = data.get("volume", 50)
-            self.async_set_updated_data(await self._async_update_data())
+            # Volume already handled by _update_from_scope_data
+            _LOGGER.info("🎵 VOLUME EVENT - processed by scope data handler")
             
         elif event == WS_EVENT_STATION:
-            # Handle station change event
-            if "stationName" in data:
-                _LOGGER.info("Station changed to: %s", data["stationName"])
-                # Update current song info to reflect station change
-                self._current_song.update(data)
-                self.async_set_updated_data(await self._async_update_data())
+            # Station info already handled by _update_from_scope_data
+            _LOGGER.info("🎵 STATION EVENT - processed by scope data handler")
                 
         elif event == WS_EVENT_STATION_LIST:
-            # Handle station list event (alternative format)
-            raw_stations = []
-            if isinstance(data, list):
-                raw_stations = [s for s in data if s.strip()]
-            elif "stations" in data:
-                raw_stations = [s for s in data["stations"] if s.strip()]
-            
-            if raw_stations:
-                self._process_stations(raw_stations)
-                _LOGGER.info("Received station list via 'stationList' event - Raw: %s, Cleaned: %s", self._stations_raw, self._stations)
-                self.async_set_updated_data(await self._async_update_data())
+            # Station list already handled by _update_from_scope_data
+            _LOGGER.info("🎵 STATION_LIST EVENT - processed by scope data handler")
             
         elif event == WS_EVENT_SONG:
-            # Handle song change which might include station info
+            # Song data already handled by _update_from_scope_data
             # Preserve existing rating if not provided in new data
             existing_rating = self._current_song.get("rating")
-            self._current_song.update(data)
             if "rating" not in data and existing_rating:
                 self._current_song["rating"] = existing_rating
-            
-            # Check for play state in song event (should already be handled above, but double-check)
-            if "pianobarPlaying" in data:
-                old_playing = self._is_playing
-                self._is_playing = data.get("pianobarPlaying", False)
-                _LOGGER.info("🎵 WS_EVENT_SONG - pianobarPlaying: %s -> %s", old_playing, self._is_playing)
-            elif "isplaying" in data:
-                old_playing = self._is_playing
-                self._is_playing = data.get("isplaying", self._is_playing)
-                _LOGGER.info("🎵 WS_EVENT_SONG - isplaying fallback: %s -> %s", old_playing, self._is_playing)
-                
-            self.async_set_updated_data(await self._async_update_data())
+                _LOGGER.info("🎵 WS_EVENT_SONG - preserved existing rating: %s", existing_rating)
         
         elif event == "action":
             # Handle action responses (like play/pause toggle)
@@ -400,62 +370,13 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             self.async_set_updated_data(await self._async_update_data())
         
         elif event == "status":
-            # Handle status updates that might include play state
-            old_playing = self._is_playing
-            if "isplaying" in data:
-                self._is_playing = data.get("isplaying", False)
-            if "isrunning" in data:
-                self._is_running = data.get("isrunning", False)
-            if "volume" in data:
-                self._volume = data.get("volume", 50)
-            _LOGGER.info("🎵 STATUS EVENT - old_playing: %s, new_playing: %s, data: %s", old_playing, self._is_playing, data)
-            # Update song info if present
-            if any(key in data for key in ["title", "artist", "album", "stationName"]):
-                self._current_song.update(data)
-            self.async_set_updated_data(await self._async_update_data())
+            # Status data already handled by _update_from_scope_data
+            _LOGGER.info("🎵 STATUS EVENT - processed by scope data handler")
         
-        # Catch-all for any unrecognized events that might contain station data
+        # Catch-all for any unrecognized events
         else:
             _LOGGER.info("🎵 UNRECOGNIZED EVENT: '%s' with data: %s", event, data)
-            
-            # Check if this unknown event contains station information
-            if isinstance(data, dict):
-                if "stations" in data:
-                    stations_data = data["stations"]
-                    if isinstance(stations_data, list):
-                        raw_stations = [s for s in stations_data if s.strip()]
-                        if raw_stations:
-                            self._process_stations(raw_stations)
-                            _LOGGER.info("Found station list in unknown event '%s' - Raw: %s, Cleaned: %s", event, self._stations_raw, self._stations)
-                            self.async_set_updated_data(await self._async_update_data())
-                
-                # Update song info if present
-                if "title" in data or "artist" in data or "stationName" in data:
-                    _LOGGER.debug("Updating song info from unknown event '%s'", event)
-                    # Preserve existing rating if not provided in new data
-                    existing_rating = self._current_song.get("rating")
-                    self._current_song.update(data)
-                    
-                # Check for play state in unknown events
-                if "pianobarPlaying" in data:
-                    old_playing = self._is_playing
-                    self._is_playing = data.get("pianobarPlaying", False)
-                    _LOGGER.info("🎵 FOUND pianobarPlaying in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
-                elif "isplaying" in data:
-                    old_playing = self._is_playing
-                    self._is_playing = data.get("isplaying", False)
-                    _LOGGER.info("🎵 FOUND PLAYING STATE in unknown event '%s': %s -> %s", event, old_playing, self._is_playing)
-                    
-                if "isrunning" in data:
-                    old_running = self._is_running
-                    self._is_running = data.get("isrunning", False)
-                    _LOGGER.info("🎵 FOUND RUNNING STATE in unknown event '%s': %s -> %s", event, old_running, self._is_running)
-                    
-                # Trigger update if any relevant data was found
-                if any(key in data for key in ["title", "artist", "stationName", "pianobarPlaying", "isplaying", "isrunning"]):
-                    if "rating" not in data and existing_rating:
-                        self._current_song["rating"] = existing_rating
-                    self.async_set_updated_data(await self._async_update_data())
+            # All scope data already handled by _update_from_scope_data above
 
     # Media control methods
     async def async_media_play(self) -> None:
