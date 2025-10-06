@@ -91,9 +91,14 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     @property
     def state(self) -> MediaPlayerState:
         """Return the state of the media player."""
-        if not self.coordinator.is_running:
+        is_running = self.coordinator.is_running
+        is_playing = self.coordinator.is_playing
+        
+        _LOGGER.debug("Media player state check - is_running: %s, is_playing: %s", is_running, is_playing)
+        
+        if not is_running:
             return MediaPlayerState.OFF
-        elif self.coordinator.is_playing:
+        elif is_playing:
             return MediaPlayerState.PLAYING
         else:
             return MediaPlayerState.PAUSED
