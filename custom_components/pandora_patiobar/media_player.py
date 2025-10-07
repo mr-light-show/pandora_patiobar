@@ -115,6 +115,21 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         _LOGGER.warning("🎵 MEDIA PLAYER volume_level called: coordinator.volume=%s -> result=%s", self.coordinator.volume, result)
         return result
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # Check if this update included volume changes
+        if hasattr(self, '_last_volume') and self._last_volume != self.coordinator.volume:
+            _LOGGER.warning("🎵 VOLUME CHANGED: %s -> %s, forcing state write", getattr(self, '_last_volume', None), self.coordinator.volume)
+            self._last_volume = self.coordinator.volume
+            # Force immediate state write for volume changes
+            self.async_write_ha_state()
+        else:
+            self._last_volume = self.coordinator.volume
+        
+        # Call parent method
+        super()._handle_coordinator_update()
+
     @property
     def source(self) -> str | None:
         """Name of the current input source."""

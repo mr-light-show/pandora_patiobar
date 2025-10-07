@@ -331,6 +331,14 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         if state_updated:
             _LOGGER.warning("🎵 TRIGGERING HOME ASSISTANT UPDATE - state_updated=True")
             self.async_set_updated_data(await self._async_update_data())
+            # Force entity state write for UI refresh (especially for volume)
+            if "volume" in data:
+                _LOGGER.warning("🎵 FORCING ENTITY STATE WRITE for volume update")
+                # Force all entities to update their state in HA
+                for entity in self.hass.data.get("entity_registry", {}).entities.values():
+                    if hasattr(entity, "coordinator") and entity.coordinator == self:
+                        if hasattr(entity, "async_write_ha_state"):
+                            entity.async_write_ha_state()
         else:
             _LOGGER.warning("🎵 NO HOME ASSISTANT UPDATE - state_updated=False")
             
