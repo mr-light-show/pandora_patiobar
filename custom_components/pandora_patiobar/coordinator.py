@@ -55,7 +55,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         self._stations = []
         self._stations_raw = []  # Store original station names with numbers
         self._current_song = {}
-        self._volume = 50
+        self._volume = None  # Start as None, will be set from first websocket update
         self._is_playing = False  # Start as False, will be updated from websocket
         self._is_running = False
         
@@ -146,8 +146,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         await super().async_config_entry_first_refresh()
         # Start websocket connection after first refresh
         self.websocket_task = asyncio.create_task(self._websocket_handler())
-        # Request initial station list
+        # Request initial station list AND current status
         await self._request_initial_data()
+        await self._request_current_volume()
 
     async def async_disconnect(self) -> None:
         """Disconnect from websocket."""
@@ -274,14 +275,22 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         if "volume" in data:
             old_volume = self._volume
             volume_value = data.get("volume")
-            # Use volume if provided and valid, otherwise keep current or default to 50
-            self._volume = volume_value if volume_value is not None else self._volume or 50
-            if old_volume != self._volume:
-                _LOGGER.debug("Volume changed: %s -> %s", old_volume, self._volume)
+            
+            # If this is the first volume update and we had None, always update
+            if self._volume is None and volume_value is not None:
+                self._volume = volume_value
+                self._volume_initialized = True
+                _LOGGER.info("Initial volume sync from player: %s", self._volume)
                 state_updated = True
             else:
-                # Force update even if volume hasn't changed to ensure UI sync
-                state_updated = True
+                # Normal volume handling
+                self._volume = volume_value if volume_value is not None else self._volume or 25
+                if old_volume != self._volume:
+                    _LOGGER.debug("Volume changed: %s -> %s", old_volume, self._volume)
+                    state_updated = True
+                else:
+                    # Force update even if volume hasn't changed to ensure UI sync
+                    state_updated = True
                 
         # Song information - update current_song with all available fields
         song_fields = ["artist", "album", "title", "stationName", "songStationName", "src", "coverArt", "alt", "loved", "rating"]
@@ -352,11 +361,18 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             
         elif event == WS_EVENT_SONG:
             # Song data already handled by _update_from_scope_data
-            # Preserve existing rating if not provided in new data
+            # Handle rating state for new songs
             existing_rating = self._current_song.get("rating")
-            if "rating" not in data and existing_rating:
-                self._current_song["rating"] = existing_rating
-                _LOGGER.info("🎵 WS_EVENT_SONG - preserved existing rating: %s", existing_rating)
+            if "rating" not in data:
+                if existing_rating:
+                    # New song with no rating - clear any previous thumbs up/down state
+                    self._current_song["rating"] = None
+                    self._current_song["loved"] = None
+                    _LOGGER.info("New song without rating - cleared previous thumbs state")
+                    state_updated = True
+            else:
+                # Rating provided in new song data, preserve it
+                _LOGGER.debug("New song with rating: %s", data.get("rating"))
         
         elif event == "action":
             # Handle action responses (like play/pause toggle)
@@ -410,7 +426,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def async_media_pause(self) -> None:
         """Send pause command."""
         try:
-            _LOGGER.warning("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
+            _LOGGER.info("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
@@ -560,6 +576,18 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.async_request_song_info()
         except Exception as err:
             _LOGGER.error("Error requesting current status: %s", err)
+
+    async def _request_current_volume(self) -> None:
+        """Request current volume on startup."""
+        await asyncio.sleep(3)  # Wait for websocket to stabilize
+        try:
+            if self.websocket:
+                # Request current status which includes volume
+                message = '42["action", {"action": "i"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Requested current volume on startup")
+        except Exception as err:
+            _LOGGER.debug("Failed to request startup volume: %s", err)
 
     async def _request_initial_data(self) -> None:
         """Request initial data from Patiobar including station list."""
