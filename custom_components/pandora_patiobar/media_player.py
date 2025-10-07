@@ -109,8 +109,11 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     def volume_level(self) -> float | None:
         """Volume level of the media player (0..1)."""
         if self.coordinator.volume is None:
-            return None
-        return self.coordinator.volume / 100.0
+            result = None
+        else:
+            result = self.coordinator.volume / 100.0
+        _LOGGER.warning("🎵 MEDIA PLAYER volume_level called: coordinator.volume=%s -> result=%s", self.coordinator.volume, result)
+        return result
 
     @property
     def source(self) -> str | None:
