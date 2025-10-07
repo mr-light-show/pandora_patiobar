@@ -250,6 +250,12 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             if old_running != self._is_running:
                 _LOGGER.warning("🎵 FOUND pianobarRunning: %s -> %s (%s)", old_running, self._is_running, source)
                 state_updated = True
+        elif "isrunning" in data:
+            old_running = self._is_running
+            self._is_running = data.get("isrunning", False)
+            if old_running != self._is_running:
+                _LOGGER.warning("🎵 FOUND isrunning: %s -> %s (%s)", old_running, self._is_running, source)
+                state_updated = True
                 
         # Play state - prioritize pianobarPlaying over isplaying
         if "pianobarPlaying" in data:
