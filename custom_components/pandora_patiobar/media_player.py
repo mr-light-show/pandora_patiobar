@@ -102,7 +102,6 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         else:
             state = MediaPlayerState.PAUSED
             
-        _LOGGER.warning("🎵 MEDIA PLAYER STATE: is_running=%s, is_playing=%s -> %s", is_running, is_playing, state)
         return state
 
     @property
@@ -202,12 +201,10 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
 
     async def async_media_play(self) -> None:
         """Send play command."""
-        _LOGGER.warning("🎵 MEDIA PLAYER: async_media_play() called")
         await self.coordinator.async_media_play()
 
     async def async_media_pause(self) -> None:
         """Send pause command."""
-        _LOGGER.warning("🎵 MEDIA PLAYER: async_media_pause() called")
         await self.coordinator.async_media_pause()
 
     async def async_media_next_track(self) -> None:
