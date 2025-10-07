@@ -164,7 +164,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         """Handle websocket connection."""
         while True:
             try:
-                _LOGGER.warning("🎵 ATTEMPTING WEBSOCKET CONNECTION to %s", self.ws_url)
+                _LOGGER.debug("Connecting to websocket at %s", self.ws_url)
                 async with websockets.connect(
                     self.ws_url,
                     ping_interval=30,  # Send ping every 30 seconds
@@ -172,10 +172,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     close_timeout=10   # Wait 10 seconds for close
                 ) as websocket:
                     self.websocket = websocket
-                    _LOGGER.warning("🎵 WEBSOCKET CONNECTED SUCCESSFULLY")
+                    _LOGGER.info("Websocket connected successfully")
                     # Send initial Socket.IO handshake
                     await websocket.send("40")  # Socket.IO connect message
-                    _LOGGER.warning("🎵 SENT SOCKET.IO HANDSHAKE: 40")
+                    _LOGGER.debug("Sent Socket.IO handshake")
                     
                     # Start keepalive task
                     keepalive_task = asyncio.create_task(self._keepalive_handler(websocket))
@@ -191,7 +191,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                             pass
                         
             except Exception as err:
-                _LOGGER.error("🎵 WEBSOCKET CONNECTION ERROR: %s", err)
+                _LOGGER.error("Websocket connection error: %s", err)
                 await asyncio.sleep(5)  # Wait before reconnecting
 
     async def _keepalive_handler(self, websocket) -> None:
@@ -207,7 +207,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def _handle_websocket_message(self, message: str) -> None:
         """Handle incoming websocket messages."""
         try:
-            _LOGGER.warning("🎵 RAW WEBSOCKET MESSAGE: %s", message)
+            _LOGGER.debug("Raw websocket message received: %s", message)
             
             if message.startswith("42"):  # Socket.IO event message
                 # Parse Socket.IO message format: 42["event_name", data]
@@ -218,7 +218,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     event_name = data[0]
                     event_data = data[1] if len(data) > 1 else {}
                     
-                    _LOGGER.warning("🎵 PARSED WEBSOCKET EVENT: '%s' with data: %s", event_name, event_data)
+                    _LOGGER.debug("Parsed websocket event: '%s' with data: %s", event_name, event_data)
                     await self._process_websocket_event(event_name, event_data)
                     
         except json.JSONDecodeError:
@@ -237,24 +237,23 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         Returns:
             bool: True if any state was updated
         """
-        _LOGGER.warning("🎵 SCOPE DATA UPDATE - Source: %s, Data: %s", source, data)
         state_updated = False
         
         # Server/process status fields
         if "patiobarRunning" in data:
-            _LOGGER.warning("🎵 FOUND patiobarRunning: %s (%s)", data.get("patiobarRunning"), source)
+            _LOGGER.debug("Found patiobarRunning: %s", data.get("patiobarRunning"))
             
         if "pianobarRunning" in data:
             old_running = self._is_running
             self._is_running = data.get("pianobarRunning", False)
             if old_running != self._is_running:
-                _LOGGER.warning("🎵 FOUND pianobarRunning: %s -> %s (%s)", old_running, self._is_running, source)
+                _LOGGER.info("Piano bar running state changed: %s -> %s", old_running, self._is_running)
                 state_updated = True
         elif "isrunning" in data:
             old_running = self._is_running
             self._is_running = data.get("isrunning", False)
             if old_running != self._is_running:
-                _LOGGER.warning("🎵 FOUND isrunning: %s -> %s (%s)", old_running, self._is_running, source)
+                _LOGGER.info("Piano bar running state changed: %s -> %s", old_running, self._is_running)
                 state_updated = True
                 
         # Play state - prioritize pianobarPlaying over isplaying
@@ -262,29 +261,26 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             old_playing = self._is_playing
             self._is_playing = data.get("pianobarPlaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.warning("🎵 FOUND pianobarPlaying: %s -> %s (%s)", old_playing, self._is_playing, source)
+                _LOGGER.info("Piano bar playing state changed: %s -> %s", old_playing, self._is_playing)
                 state_updated = True
         elif "isplaying" in data:
             old_playing = self._is_playing
             self._is_playing = data.get("isplaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.warning("🎵 FOUND isplaying: %s -> %s (%s)", old_playing, self._is_playing, source)
+                _LOGGER.info("Piano bar playing state changed: %s -> %s", old_playing, self._is_playing)
                 state_updated = True
                 
         # Audio control
         if "volume" in data:
             old_volume = self._volume
             volume_value = data.get("volume")
-            _LOGGER.warning("🎵 VOLUME DEBUG - old_volume=%s (type=%s), volume_value=%s (type=%s)", old_volume, type(old_volume), volume_value, type(volume_value))
             # Use volume if provided and valid, otherwise keep current or default to 50
             self._volume = volume_value if volume_value is not None else self._volume or 50
-            _LOGGER.warning("🎵 VOLUME DEBUG - new self._volume=%s (type=%s), changed=%s", self._volume, type(self._volume), old_volume != self._volume)
             if old_volume != self._volume:
-                _LOGGER.warning("🎵 FOUND volume: %s -> %s (%s)", old_volume, self._volume, source)
+                _LOGGER.debug("Volume changed: %s -> %s", old_volume, self._volume)
                 state_updated = True
             else:
                 # Force update even if volume hasn't changed to ensure UI sync
-                _LOGGER.warning("🎵 VOLUME UNCHANGED: %s (forcing HA update for UI sync)", self._volume)
                 state_updated = True
                 
         # Song information - update current_song with all available fields
@@ -297,7 +293,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 if old_value != new_value:
                     self._current_song[field] = new_value
                     song_updated = True
-                    _LOGGER.info("🎵 FOUND song field '%s': %s -> %s (%s)", field, old_value, new_value, source)
+                    _LOGGER.debug("Song field '%s' updated: %s -> %s", field, old_value, new_value)
                     
         # Map 'src' to 'coverArt' for compatibility (if src is provided but not coverArt)
         if "src" in data and "coverArt" not in data:
@@ -317,7 +313,6 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     state_updated = True
                     
         final_updated = state_updated or song_updated
-        _LOGGER.warning("🎵 SCOPE DATA RESULT - state_updated=%s, song_updated=%s, final=%s", state_updated, song_updated, final_updated)
         return final_updated
 
     async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
