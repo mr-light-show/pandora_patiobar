@@ -164,7 +164,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         """Handle websocket connection."""
         while True:
             try:
-                _LOGGER.debug("Connecting to websocket at %s", self.ws_url)
+                _LOGGER.warning("🎵 ATTEMPTING WEBSOCKET CONNECTION to %s", self.ws_url)
                 async with websockets.connect(
                     self.ws_url,
                     ping_interval=30,  # Send ping every 30 seconds
@@ -172,8 +172,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     close_timeout=10   # Wait 10 seconds for close
                 ) as websocket:
                     self.websocket = websocket
+                    _LOGGER.warning("🎵 WEBSOCKET CONNECTED SUCCESSFULLY")
                     # Send initial Socket.IO handshake
                     await websocket.send("40")  # Socket.IO connect message
+                    _LOGGER.warning("🎵 SENT SOCKET.IO HANDSHAKE: 40")
                     
                     # Start keepalive task
                     keepalive_task = asyncio.create_task(self._keepalive_handler(websocket))
@@ -189,7 +191,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                             pass
                         
             except Exception as err:
-                _LOGGER.error("Websocket connection error: %s", err)
+                _LOGGER.error("🎵 WEBSOCKET CONNECTION ERROR: %s", err)
                 await asyncio.sleep(5)  # Wait before reconnecting
 
     async def _keepalive_handler(self, websocket) -> None:
@@ -205,7 +207,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def _handle_websocket_message(self, message: str) -> None:
         """Handle incoming websocket messages."""
         try:
-            _LOGGER.debug("Raw websocket message received: %s", message)
+            _LOGGER.warning("🎵 RAW WEBSOCKET MESSAGE: %s", message)
             
             if message.startswith("42"):  # Socket.IO event message
                 # Parse Socket.IO message format: 42["event_name", data]
@@ -216,7 +218,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     event_name = data[0]
                     event_data = data[1] if len(data) > 1 else {}
                     
-                    _LOGGER.debug("Parsed websocket event: '%s' with data: %s", event_name, event_data)
+                    _LOGGER.warning("🎵 PARSED WEBSOCKET EVENT: '%s' with data: %s", event_name, event_data)
                     await self._process_websocket_event(event_name, event_data)
                     
         except json.JSONDecodeError:
