@@ -282,7 +282,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 state_updated = True
                 
         # Song information - update current_song with all available fields
-        song_fields = ["artist", "album", "title", "songStationName", "src", "alt", "loved", "rating"]
+        song_fields = ["artist", "album", "title", "songStationName", "src", "coverArt", "alt", "loved", "rating"]
         song_updated = False
         for field in song_fields:
             if field in data:
@@ -293,9 +293,12 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     song_updated = True
                     _LOGGER.info("🎵 FOUND song field '%s': %s -> %s (%s)", field, old_value, new_value, source)
                     
-        # Map 'src' to 'coverArt' for compatibility
-        if "src" in data:
+        # Map 'src' to 'coverArt' for compatibility (if src is provided but not coverArt)
+        if "src" in data and "coverArt" not in data:
             self._current_song["coverArt"] = data.get("src")
+        # Map 'coverArt' to 'src' for compatibility (if coverArt is provided but not src)  
+        elif "coverArt" in data and "src" not in data:
+            self._current_song["src"] = data.get("coverArt")
             
         # Station data
         if "stationName" in data:
