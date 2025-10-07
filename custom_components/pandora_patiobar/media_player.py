@@ -118,6 +118,8 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        _LOGGER.warning("🎵 _handle_coordinator_update called - coordinator.volume=%s", self.coordinator.volume)
+        
         # Check if this update included volume changes
         if hasattr(self, '_last_volume') and self._last_volume != self.coordinator.volume:
             _LOGGER.warning("🎵 VOLUME CHANGED: %s -> %s, forcing state write", getattr(self, '_last_volume', None), self.coordinator.volume)
@@ -125,6 +127,10 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
             # Force immediate state write for volume changes
             self.async_write_ha_state()
         else:
+            if not hasattr(self, '_last_volume'):
+                _LOGGER.warning("🎵 FIRST TIME - setting _last_volume=%s", self.coordinator.volume)
+            else:
+                _LOGGER.warning("🎵 VOLUME UNCHANGED: %s", self.coordinator.volume)
             self._last_volume = self.coordinator.volume
         
         # Call parent method
