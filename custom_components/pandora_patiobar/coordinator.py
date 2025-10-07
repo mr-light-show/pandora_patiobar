@@ -235,17 +235,18 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         Returns:
             bool: True if any state was updated
         """
+        _LOGGER.warning("🎵 SCOPE DATA UPDATE - Source: %s, Data: %s", source, data)
         state_updated = False
         
         # Server/process status fields
         if "patiobarRunning" in data:
-            _LOGGER.info("🎵 FOUND patiobarRunning: %s (%s)", data.get("patiobarRunning"), source)
+            _LOGGER.warning("🎵 FOUND patiobarRunning: %s (%s)", data.get("patiobarRunning"), source)
             
         if "pianobarRunning" in data:
             old_running = self._is_running
             self._is_running = data.get("pianobarRunning", False)
             if old_running != self._is_running:
-                _LOGGER.info("🎵 FOUND pianobarRunning: %s -> %s (%s)", old_running, self._is_running, source)
+                _LOGGER.warning("🎵 FOUND pianobarRunning: %s -> %s (%s)", old_running, self._is_running, source)
                 state_updated = True
                 
         # Play state - prioritize pianobarPlaying over isplaying
