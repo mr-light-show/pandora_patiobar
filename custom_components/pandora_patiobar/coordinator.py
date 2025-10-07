@@ -282,6 +282,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             if old_volume != self._volume:
                 _LOGGER.warning("🎵 FOUND volume: %s -> %s (%s)", old_volume, self._volume, source)
                 state_updated = True
+            else:
+                # Force update even if volume hasn't changed to ensure UI sync
+                _LOGGER.warning("🎵 VOLUME UNCHANGED: %s (forcing HA update for UI sync)", self._volume)
+                state_updated = True
                 
         # Song information - update current_song with all available fields
         song_fields = ["artist", "album", "title", "stationName", "songStationName", "src", "coverArt", "alt", "loved", "rating"]
