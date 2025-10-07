@@ -265,7 +265,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         # Audio control
         if "volume" in data:
             old_volume = self._volume
-            self._volume = data.get("volume", 50)
+            volume_value = data.get("volume")
+            # Use volume if provided and valid, otherwise keep current or default to 50
+            self._volume = volume_value if volume_value is not None else self._volume or 50
             if old_volume != self._volume:
                 _LOGGER.info("🎵 FOUND volume: %s -> %s (%s)", old_volume, self._volume, source)
                 state_updated = True
