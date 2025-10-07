@@ -112,8 +112,29 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
             result = None
         else:
             result = self.coordinator.volume / 100.0
+        
+        # Check if volume changed since last check and force state update
+        if hasattr(self, '_last_volume_check') and self._last_volume_check != self.coordinator.volume:
+            _LOGGER.warning("🎵 VOLUME CHANGED in property: %s -> %s, scheduling state write", self._last_volume_check, self.coordinator.volume)
+            self._last_volume_check = self.coordinator.volume
+            # Schedule state write to happen after property access
+            self.hass.async_create_task(self._async_force_state_update())
+        else:
+            self._last_volume_check = self.coordinator.volume
+            
         _LOGGER.warning("🎵 MEDIA PLAYER volume_level called: coordinator.volume=%s -> result=%s", self.coordinator.volume, result)
         return result
+
+    async def _async_force_state_update(self) -> None:
+        """Force state update for volume changes."""
+        _LOGGER.warning("🎵 FORCING STATE UPDATE for volume change")
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        _LOGGER.warning("🎵 MEDIA PLAYER added to hass - initial volume=%s", self.coordinator.volume)
+        self._last_volume = self.coordinator.volume
 
     @callback
     def _handle_coordinator_update(self) -> None:
