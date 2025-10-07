@@ -361,11 +361,18 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             
         elif event == WS_EVENT_SONG:
             # Song data already handled by _update_from_scope_data
-            # Preserve existing rating if not provided in new data
+            # Handle rating state for new songs
             existing_rating = self._current_song.get("rating")
-            if "rating" not in data and existing_rating:
-                self._current_song["rating"] = existing_rating
-                _LOGGER.info("🎵 WS_EVENT_SONG - preserved existing rating: %s", existing_rating)
+            if "rating" not in data:
+                if existing_rating:
+                    # New song with no rating - clear any previous thumbs up/down state
+                    self._current_song["rating"] = None
+                    self._current_song["loved"] = None
+                    _LOGGER.info("New song without rating - cleared previous thumbs state")
+                    state_updated = True
+            else:
+                # Rating provided in new song data, preserve it
+                _LOGGER.debug("New song with rating: %s", data.get("rating"))
         
         elif event == "action":
             # Handle action responses (like play/pause toggle)
