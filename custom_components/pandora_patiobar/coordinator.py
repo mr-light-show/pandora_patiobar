@@ -253,13 +253,13 @@ class PatiobarCoordinator(DataUpdateCoordinator):
             old_playing = self._is_playing
             self._is_playing = data.get("pianobarPlaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.info("🎵 FOUND pianobarPlaying: %s -> %s (%s)", old_playing, self._is_playing, source)
+                _LOGGER.warning("🎵 FOUND pianobarPlaying: %s -> %s (%s)", old_playing, self._is_playing, source)
                 state_updated = True
         elif "isplaying" in data:
             old_playing = self._is_playing
             self._is_playing = data.get("isplaying", False)
             if old_playing != self._is_playing:
-                _LOGGER.info("🎵 FOUND isplaying: %s -> %s (%s)", old_playing, self._is_playing, source)
+                _LOGGER.warning("🎵 FOUND isplaying: %s -> %s (%s)", old_playing, self._is_playing, source)
                 state_updated = True
                 
         # Audio control
@@ -310,7 +310,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
 
     async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
         """Process websocket events."""
-        _LOGGER.info("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
+        _LOGGER.warning("🎵 WEBSOCKET EVENT: '%s' with data: %s", event, data)
         
         # Update state from scope data (handles all common scope fields)
         state_updated = self._update_from_scope_data(data, f"event:{event}")
@@ -356,7 +356,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 # Play/pause toggle - temporarily update state then wait for websocket confirmation
                 old_state = self._is_playing
                 self._is_playing = not self._is_playing
-                _LOGGER.info("🎵 PLAY/PAUSE TOGGLE - temporary state: %s -> %s (waiting for pianobarPlaying confirmation)", old_state, self._is_playing)
+                _LOGGER.warning("🎵 PLAY/PAUSE TOGGLE - temporary state: %s -> %s (waiting for pianobarPlaying confirmation)", old_state, self._is_playing)
                 self.async_set_updated_data(await self._async_update_data())
                 
                 # Request status to get actual pianobarPlaying state
@@ -384,7 +384,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def async_media_play(self) -> None:
         """Send play command."""
         try:
-            _LOGGER.info("🎵 SENDING PLAY COMMAND - current is_playing: %s", self._is_playing)
+            _LOGGER.warning("🎵 SENDING PLAY COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
@@ -399,7 +399,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     async def async_media_pause(self) -> None:
         """Send pause command."""
         try:
-            _LOGGER.info("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
+            _LOGGER.warning("🎵 SENDING PAUSE COMMAND - current is_playing: %s", self._is_playing)
             if self.websocket:
                 # Use pianobar "p" command for play/pause toggle
                 message = '42["action", {"action": "p"}]'
