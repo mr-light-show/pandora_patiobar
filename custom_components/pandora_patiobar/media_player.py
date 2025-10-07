@@ -189,6 +189,8 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
             attributes["loved"] = song_info["loved"]
         
         # Station information  
+        if song_info.get("stationName"):
+            attributes["current_station"] = song_info["stationName"]
         if song_info.get("songStationName"):
             attributes["song_station"] = song_info["songStationName"]
         
