@@ -275,8 +275,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         if "volume" in data:
             old_volume = self._volume
             volume_value = data.get("volume")
+            _LOGGER.warning("🎵 VOLUME DEBUG - old_volume=%s (type=%s), volume_value=%s (type=%s)", old_volume, type(old_volume), volume_value, type(volume_value))
             # Use volume if provided and valid, otherwise keep current or default to 50
             self._volume = volume_value if volume_value is not None else self._volume or 50
+            _LOGGER.warning("🎵 VOLUME DEBUG - new self._volume=%s (type=%s), changed=%s", self._volume, type(self._volume), old_volume != self._volume)
             if old_volume != self._volume:
                 _LOGGER.warning("🎵 FOUND volume: %s -> %s (%s)", old_volume, self._volume, source)
                 state_updated = True
