@@ -310,7 +310,9 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                     _LOGGER.info("🎵 FOUND stations: %s (%s)", len(raw_stations), source)
                     state_updated = True
                     
-        return state_updated or song_updated
+        final_updated = state_updated or song_updated
+        _LOGGER.warning("🎵 SCOPE DATA RESULT - state_updated=%s, song_updated=%s, final=%s", state_updated, song_updated, final_updated)
+        return final_updated
 
     async def _process_websocket_event(self, event: str, data: dict[str, Any]) -> None:
         """Process websocket events."""
@@ -321,7 +323,10 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         
         # Update Home Assistant if any state changed
         if state_updated:
+            _LOGGER.warning("🎵 TRIGGERING HOME ASSISTANT UPDATE - state_updated=True")
             self.async_set_updated_data(await self._async_update_data())
+        else:
+            _LOGGER.warning("🎵 NO HOME ASSISTANT UPDATE - state_updated=False")
             
         if event == WS_EVENT_START:
             # All data already handled by _update_from_scope_data
