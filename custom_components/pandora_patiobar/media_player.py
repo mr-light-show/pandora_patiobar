@@ -5,10 +5,19 @@ import logging
 from typing import Any
 
 from homeassistant.components.media_player import (
+    BrowseMedia,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
     MediaType,
+)
+from homeassistant.components.media_player.browse_media import (
+    async_process_play_media_url,
+)
+from homeassistant.components.media_player.const import (
+    MEDIA_CLASS_DIRECTORY,
+    MEDIA_CLASS_MUSIC,
+    MEDIA_TYPE_MUSIC,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -29,6 +38,8 @@ SUPPORT_PATIOBAR = (
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.TURN_ON
     | MediaPlayerEntityFeature.TURN_OFF
+    | MediaPlayerEntityFeature.STOP
+    | MediaPlayerEntityFeature.BROWSE_MEDIA
 )
 
 
@@ -212,6 +223,10 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         """Send next track command."""
         await self.coordinator.async_media_next_track()
 
+    async def async_media_stop(self) -> None:
+        """Send stop command (shuts down Pianobar)."""
+        await self.coordinator.async_turn_off()
+
     async def async_set_volume_level(self, volume: float) -> None:
         """Set volume level, range 0..1."""
         await self.coordinator.async_set_volume_level(volume)
@@ -220,6 +235,16 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         """Select input source."""
         await self.coordinator.async_select_source(source)
 
+    async def async_play_media(
+        self, media_type: str, media_id: str, **kwargs: Any
+    ) -> None:
+        """Play a piece of media."""
+        if media_type == MEDIA_TYPE_MUSIC:
+            # Media ID should be a station name
+            await self.coordinator.async_select_source(media_id)
+        else:
+            _LOGGER.warning("Unsupported media type: %s", media_type)
+
     async def async_turn_on(self) -> None:
         """Turn the media player on."""
         await self.coordinator.async_turn_on()
@@ -227,6 +252,40 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     async def async_turn_off(self) -> None:
         """Turn the media player off."""
         await self.coordinator.async_turn_off()
+
+    async def async_browse_media(
+        self, media_content_type: str | None = None, media_content_id: str | None = None
+    ) -> BrowseMedia:
+        """Implement the websocket media browsing helper."""
+        return await self._async_browse_media_stations()
+
+    async def _async_browse_media_stations(self) -> BrowseMedia:
+        """Browse available Pandora stations."""
+        stations = self.coordinator.stations
+        
+        # Create root directory for stations
+        children = []
+        for station in stations:
+            children.append(
+                BrowseMedia(
+                    title=station,
+                    media_class=MEDIA_CLASS_MUSIC,
+                    media_content_id=station,
+                    media_content_type=MEDIA_TYPE_MUSIC,
+                    can_play=True,
+                    can_expand=False,
+                )
+            )
+        
+        return BrowseMedia(
+            title="Pandora Stations",
+            media_class=MEDIA_CLASS_DIRECTORY,
+            media_content_id="stations",
+            media_content_type="stations",
+            can_play=False,
+            can_expand=True,
+            children=children,
+        )
 
     # Custom service methods for thumbs up/down
     async def async_thumbs_up(self) -> None:
