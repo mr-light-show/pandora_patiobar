@@ -274,7 +274,21 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         self, media_content_type: str | None = None, media_content_id: str | None = None
     ) -> BrowseMedia:
         """Implement the websocket media browsing helper."""
-        return await self._async_browse_media_stations()
+        # If no content ID is provided or it's the root, show the station list
+        if media_content_id is None or media_content_id == "stations":
+            return await self._async_browse_media_stations()
+        
+        # If browsing into a specific station, return empty since Pandora stations
+        # are radio streams and don't have browseable song lists
+        return BrowseMedia(
+            title=f"{media_content_id}",
+            media_class=MediaClass.DIRECTORY,
+            media_content_id=media_content_id,
+            media_content_type=MediaType.MUSIC,
+            can_play=True,
+            can_expand=False,
+            children=[],
+        )
 
     async def _async_browse_media_stations(self) -> BrowseMedia:
         """Browse available Pandora stations."""
