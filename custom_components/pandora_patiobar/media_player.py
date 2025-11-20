@@ -31,6 +31,8 @@ SUPPORT_PATIOBAR = (
     | MediaPlayerEntityFeature.PLAY
     | MediaPlayerEntityFeature.NEXT_TRACK
     | MediaPlayerEntityFeature.VOLUME_SET
+    | MediaPlayerEntityFeature.VOLUME_STEP
+    | MediaPlayerEntityFeature.VOLUME_MUTE
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.TURN_ON
     | MediaPlayerEntityFeature.TURN_OFF
@@ -119,6 +121,11 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         if self.coordinator.volume is None or not hasattr(self.coordinator, '_volume_initialized'):
             return None
         return self.coordinator.volume / 100.0
+
+    @property
+    def is_volume_muted(self) -> bool:
+        """Return boolean if volume is currently muted."""
+        return self.coordinator.is_volume_muted
 
     @property
     def current_source(self) -> str | None:
@@ -227,6 +234,18 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     async def async_set_volume_level(self, volume: float) -> None:
         """Set volume level, range 0..1."""
         await self.coordinator.async_set_volume_level(volume)
+
+    async def async_volume_up(self) -> None:
+        """Turn volume up for media player."""
+        await self.coordinator.async_volume_up()
+
+    async def async_volume_down(self) -> None:
+        """Turn volume down for media player."""
+        await self.coordinator.async_volume_down()
+
+    async def async_mute_volume(self, mute: bool) -> None:
+        """Mute the volume."""
+        await self.coordinator.async_mute_volume(mute)
 
     async def async_select_source(self, source: str) -> None:
         """Select input source."""

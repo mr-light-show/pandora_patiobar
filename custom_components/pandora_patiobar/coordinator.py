@@ -58,6 +58,7 @@ class PatiobarCoordinator(DataUpdateCoordinator):
         self._volume = None  # Start as None, will be set from first websocket update
         self._is_playing = False  # Start as False, will be updated from websocket
         self._is_running = False
+        self._is_volume_muted = False  # Track mute state
         
         _LOGGER.info("🎵 COORDINATOR INIT - Initial state: is_playing=%s, is_running=%s", self._is_playing, self._is_running)
 
@@ -125,6 +126,11 @@ class PatiobarCoordinator(DataUpdateCoordinator):
     def is_running(self) -> bool:
         """Return if Pianobar is running."""
         return self._is_running
+
+    @property
+    def is_volume_muted(self) -> bool:
+        """Return if volume is muted."""
+        return self._is_volume_muted
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API endpoint."""
@@ -461,6 +467,41 @@ class PatiobarCoordinator(DataUpdateCoordinator):
                 await self.websocket.send(message)
         except Exception as err:
             _LOGGER.error("Error setting volume: %s", err)
+
+    async def async_volume_up(self) -> None:
+        """Increase volume."""
+        try:
+            if self.websocket:
+                # Pianobar ")" command for volume up
+                message = '42["action", {"action": ")"}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent volume up command")
+        except Exception as err:
+            _LOGGER.error("Error sending volume up command: %s", err)
+
+    async def async_volume_down(self) -> None:
+        """Decrease volume."""
+        try:
+            if self.websocket:
+                # Pianobar "(" command for volume down
+                message = '42["action", {"action": "("}]'
+                await self.websocket.send(message)
+                _LOGGER.debug("Sent volume down command")
+        except Exception as err:
+            _LOGGER.error("Error sending volume down command: %s", err)
+
+    async def async_mute_volume(self, mute: bool) -> None:
+        """Mute or unmute volume."""
+        try:
+            if self.websocket:
+                # Pianobar "m" command toggles mute, so we only send if state needs to change
+                if mute != self._is_volume_muted:
+                    message = '42["action", {"action": "m"}]'
+                    await self.websocket.send(message)
+                    self._is_volume_muted = mute
+                    _LOGGER.debug("Sent mute toggle command, new mute state: %s", mute)
+        except Exception as err:
+            _LOGGER.error("Error sending mute command: %s", err)
 
     async def async_select_source(self, source: str) -> None:
         """Select station/source."""
