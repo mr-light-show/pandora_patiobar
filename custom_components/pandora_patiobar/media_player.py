@@ -124,7 +124,7 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         return self.coordinator.volume / 100.0
 
     @property
-    def source(self) -> str | None:
+    def current_source(self) -> str | None:
         """Name of the current input source."""
         song_info = self.coordinator.current_song
         return song_info.get("stationName")
