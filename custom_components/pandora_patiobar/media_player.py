@@ -36,6 +36,7 @@ SUPPORT_PATIOBAR = (
     | MediaPlayerEntityFeature.TURN_OFF
     | MediaPlayerEntityFeature.STOP
     | MediaPlayerEntityFeature.BROWSE_MEDIA
+    | MediaPlayerEntityFeature.PLAY_MEDIA
 )
 
 
