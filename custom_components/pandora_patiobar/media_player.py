@@ -128,7 +128,7 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         return self.coordinator.is_volume_muted
 
     @property
-    def current_source(self) -> str | None:
+    def source(self) -> str | None:
         """Name of the current input source."""
         song_info = self.coordinator.current_song
         return song_info.get("stationName")
@@ -203,9 +203,7 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         if song_info.get("loved"):
             attributes["loved"] = song_info["loved"]
         
-        # Station information  
-        if song_info.get("stationName"):
-            attributes["current_station"] = song_info["stationName"]
+        # Station information (song_station is the station the song came from in QuickMix)
         if song_info.get("songStationName"):
             attributes["song_station"] = song_info["songStationName"]
         
