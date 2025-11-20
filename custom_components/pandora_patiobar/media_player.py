@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.components.media_player import (
     BrowseMedia,
+    MediaClass,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
@@ -13,11 +14,6 @@ from homeassistant.components.media_player import (
 )
 from homeassistant.components.media_player.browse_media import (
     async_process_play_media_url,
-)
-from homeassistant.components.media_player.const import (
-    MEDIA_CLASS_DIRECTORY,
-    MEDIA_CLASS_MUSIC,
-    MEDIA_TYPE_MUSIC,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -239,7 +235,7 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         self, media_type: str, media_id: str, **kwargs: Any
     ) -> None:
         """Play a piece of media."""
-        if media_type == MEDIA_TYPE_MUSIC:
+        if media_type == MediaType.MUSIC:
             # Media ID should be a station name
             await self.coordinator.async_select_source(media_id)
         else:
@@ -269,9 +265,9 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
             children.append(
                 BrowseMedia(
                     title=station,
-                    media_class=MEDIA_CLASS_MUSIC,
+                    media_class=MediaClass.MUSIC,
                     media_content_id=station,
-                    media_content_type=MEDIA_TYPE_MUSIC,
+                    media_content_type=MediaType.MUSIC,
                     can_play=True,
                     can_expand=False,
                 )
@@ -279,7 +275,7 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         
         return BrowseMedia(
             title="Pandora Stations",
-            media_class=MEDIA_CLASS_DIRECTORY,
+            media_class=MediaClass.DIRECTORY,
             media_content_id="stations",
             media_content_type="stations",
             can_play=False,
