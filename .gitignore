@@ -1,5 +1,6 @@
 # Development and deployment scripts
 deploy.sh
+deploy-restart.sh
 
 # Python
 __pycache__/
