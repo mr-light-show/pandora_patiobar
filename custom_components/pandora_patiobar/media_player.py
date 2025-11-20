@@ -131,7 +131,10 @@ class PatiobarMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     def source(self) -> str | None:
         """Name of the current input source."""
         song_info = self.coordinator.current_song
-        return song_info.get("stationName")
+        station_name = song_info.get("stationName")
+        if station_name:
+            return self.coordinator._clean_station_name(station_name)
+        return None
 
     @property
     def source_list(self) -> list[str]:
